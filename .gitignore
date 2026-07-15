@@ -1,27 +1,31 @@
-# Compiled class file
+# Build output
+.gradle/
+build/
+app/build/
+captures/
+*.apk
+*.ap_
+*.dex
 *.class
 
-# Log file
+# Local machine config (SDK path is per-machine; CI sets ANDROID_HOME)
+local.properties
+
+# Decoded keystore — regenerated from keystore/debug.keystore.base64 at build time.
+# The base64 source IS committed (stable signing); the raw keystore is not.
+/keystore/debug.keystore
+
+# IDE
+.idea/
+*.iml
+.DS_Store
+
+# Logs / crash dumps
 *.log
-
-# BlueJ files
-*.ctxt
-
-# Mobile Tools for Java (J2ME)
-.mtj.tmp/
-
-# Package Files #
-*.jar
-*.war
-*.nar
-*.ear
-*.zip
-*.tar.gz
-*.rar
-
-# virtual machine crash logs, see http://www.java.com/en/download/help/error_hotspot.xml
 hs_err_pid*
 replay_pid*
 
-# Kotlin Gradle plugin data, see https://kotlinlang.org/docs/whatsnew20.html#new-directory-for-kotlin-data-in-gradle-projects
+# Kotlin
 .kotlin/
+
+# NOTE: gradle/wrapper/gradle-wrapper.jar is intentionally committed (CI needs it).

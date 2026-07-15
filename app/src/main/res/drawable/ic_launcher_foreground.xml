@@ -1,0 +1,16 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- A rounded panel sliding out from the left edge. -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M40,34 h30 a8,8 0 0 1 8,8 v24 a8,8 0 0 1 -8,8 h-30 a8,8 0 0 1 -8,-8 v-24 a8,8 0 0 1 8,-8 z" />
+    <path
+        android:fillColor="#4C5BD4"
+        android:pathData="M48,44 h22 v4 h-22 z M48,52 h22 v4 h-22 z M48,60 h22 v4 h-22 z" />
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M30,38 v32 a2,2 0 0 1 -4,0 v-32 a2,2 0 0 1 4,0 z" />
+</vector>

@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Sidebar</string>
+    <string name="notif_channel_name">Sidebar handle</string>
+    <string name="notif_title">Sidebar is active</string>
+    <string name="notif_text">Swipe in from the edge to open your apps.</string>
+</resources>

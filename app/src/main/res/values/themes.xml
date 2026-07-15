@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Compose drives all app UI; this is just a sane splash/window base. -->
+    <style name="Theme.SidebarLauncher" parent="android:Theme.Material.Light.NoActionBar" />
+</resources>
