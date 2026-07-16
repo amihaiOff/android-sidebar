@@ -65,7 +65,10 @@ running handle re-arms on each change):
   (blur), tint opacity, brightness (near-black → white), edge stroke, background
   colour/dim; folder opacity, brightness, edge, columns and corner radius; and a
   **group frame** (a subtle border around each titled group — width, brightness,
-  corner radius and shadow). Changes apply immediately.
+  corner radius, drop shadow, and a **sunken inset** that gives an inner-shadow
+  "recessed into the panel" look). There's also a **Themed icons** toggle
+  (Android 13+) that recolours app icons with a monochrome layer to match the
+  system theme, like the OS themed-icons feature. Changes apply immediately.
 - **Real, panel-confined blur.** The panel is hosted in a `Dialog` (a real
   `Window`, typed as a system overlay) so it can use
   `Window.setBackgroundBlurRadius` — a hardware backdrop blur clipped to the

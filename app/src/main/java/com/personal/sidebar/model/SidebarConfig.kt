@@ -75,6 +75,8 @@ data class PanelConfig(
     val cornerDp: Int = 28,
     /** Show app/link names under their icons in the panel. */
     val showLabels: Boolean = true,
+    /** Recolor app icons to match the system theme (Android 13+ themed icons). */
+    val themedIcons: Boolean = false,
 )
 
 /** Appearance of a folder card (a "nested glass" layer inside the panel). */
@@ -106,6 +108,8 @@ data class GroupConfig(
     val borderBrightness: Float = 0.12f,
     /** Drop-shadow elevation in dp; 0 = flat. */
     val shadowDp: Float = 0f,
+    /** Inner shadow depth in dp; makes the group look sunken into the panel. 0 = flat. */
+    val insetDp: Float = 0f,
     /** Corner radius in dp. */
     val cornerDp: Int = 16,
 )

@@ -130,6 +130,66 @@ internal fun androidx.compose.ui.graphics.drawscope.DrawScope.drawSideShadows(st
         nc.restoreToCount(save)
     }
 }
+/**
+ * Draws a soft *inner* shadow hugging the inside of the card's rounded edge, so
+ * the card reads as sunken into the panel. A blurred stroke is drawn along the
+ * edge and clipped to the card's interior, leaving only the inward bleed.
+ */
+internal fun androidx.compose.ui.graphics.drawscope.DrawScope.drawInnerShadow(cornerPx: Float, depthDp: Float) {
+    val depth = depthDp.dp.toPx()
+    if (depth <= 0f) return
+    val w = size.width
+    val h = size.height
+    val path = android.graphics.Path().apply {
+        addRoundRect(0f, 0f, w, h, cornerPx, cornerPx, android.graphics.Path.Direction.CW)
+    }
+    val paint = android.graphics.Paint().apply {
+        isAntiAlias = true
+        style = android.graphics.Paint.Style.STROKE
+        strokeWidth = depth
+        color = android.graphics.Color.argb(150, 0, 0, 0)
+        maskFilter = android.graphics.BlurMaskFilter(depth, android.graphics.BlurMaskFilter.Blur.NORMAL)
+    }
+    drawIntoCanvas { canvas ->
+        val nc = canvas.nativeCanvas
+        val save = nc.save()
+        nc.clipPath(path) // keep only the inward half of the blurred stroke
+        nc.drawRoundRect(0f, 0f, w, h, cornerPx, cornerPx, paint)
+        nc.restoreToCount(save)
+    }
+}
+
+/** Themed-icon rendering settings, provided down the panel tree. */
+internal data class IconStyle(val themed: Boolean, val fg: Int, val bg: Int)
+internal val LocalIconStyle = androidx.compose.runtime.staticCompositionLocalOf { IconStyle(false, 0, 0) }
+
+/**
+ * Renders an adaptive icon's monochrome layer tinted to the system theme (a
+ * themed icon), like Android 13+ launchers do. Returns null if the icon has no
+ * monochrome layer (or the OS is too old) so callers fall back to the full icon.
+ */
+internal fun themedIconBitmap(src: android.graphics.drawable.Drawable, sizePx: Int, fg: Int, bg: Int): android.graphics.Bitmap? {
+    if (android.os.Build.VERSION.SDK_INT < 33) return null
+    val adaptive = src as? android.graphics.drawable.AdaptiveIconDrawable ?: return null
+    val mono = adaptive.monochrome ?: return null
+    val bmp = android.graphics.Bitmap.createBitmap(sizePx, sizePx, android.graphics.Bitmap.Config.ARGB_8888)
+    val canvas = android.graphics.Canvas(bmp)
+    val radius = sizePx * 0.22f
+    val bgPaint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply { color = bg }
+    val rect = android.graphics.RectF(0f, 0f, sizePx.toFloat(), sizePx.toFloat())
+    canvas.drawRoundRect(rect, radius, radius, bgPaint)
+    val clip = android.graphics.Path().apply { addRoundRect(rect, radius, radius, android.graphics.Path.Direction.CW) }
+    canvas.clipPath(clip)
+    // Adaptive-icon layers are 1.5x the visible mask; scale the monochrome up so
+    // its safe-zone glyph fills the tile, matching how the system renders it.
+    val bleed = (sizePx * 0.25f).toInt()
+    mono.mutate()
+    mono.setTint(fg)
+    mono.setBounds(-bleed, -bleed, sizePx + bleed, sizePx + bleed)
+    mono.draw(canvas)
+    return bmp
+}
+
 private const val COLUMNS = 4
 
 /**
@@ -258,6 +318,20 @@ private fun PanelCard(
     }
     val systemPadding = WindowInsets.safeDrawing.asPaddingValues()
 
+    // Themed-icon colours from the system palette (Android 12+/13+), matching
+    // the OS themed-icons look: a light accent glyph on a muted accent tile.
+    val context = LocalContext.current
+    val iconStyle = remember(panel.themedIcons) {
+        if (panel.themedIcons && android.os.Build.VERSION.SDK_INT >= 31) {
+            IconStyle(
+                themed = true,
+                fg = context.getColor(android.R.color.system_accent1_100),
+                bg = context.getColor(android.R.color.system_accent2_800),
+            )
+        } else IconStyle(false, 0, 0)
+    }
+
+    androidx.compose.runtime.CompositionLocalProvider(LocalIconStyle provides iconStyle) {
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -332,6 +406,7 @@ private fun PanelCard(
             Icon(Icons.Filled.Settings, contentDescription = "Settings", tint = LabelSecondary, modifier = Modifier.size(26.dp))
         }
     }
+    }
 }
 
 @Composable
@@ -349,10 +424,7 @@ private fun BottomBar(
         val recentApps = recents.mapNotNull { appMap[it] }.take(4)
         recentApps.forEach { app ->
             Box(Modifier.weight(1f)) {
-                AppTile(
-                    label = app.label,
-                    bitmap = remember(app.packageName) { app.icon.toBitmap(144, 144).asImageBitmap() },
-                ) { onLaunch(app.packageName) }
+                AppTile(app = app) { onLaunch(app.packageName) }
             }
         }
         repeat(4 - recentApps.size) { Box(Modifier.weight(1f)) }
@@ -451,17 +523,23 @@ private fun PanelContent(
                     BorderStroke(groupStyle.borderDp.dp, Color.White.copy(alpha = groupStyle.borderBrightness.coerceIn(0f, 1f)))
                 } else null,
             ) {
-                Column(Modifier.padding(horizontal = 10.dp, vertical = 10.dp)) {
-                    if (!g.name.isNullOrBlank()) {
-                        Text(
-                            text = g.name,
-                            color = LabelPrimary,
-                            fontWeight = FontWeight.SemiBold,
-                            fontSize = 14.sp,
-                            modifier = Modifier.padding(start = 4.dp, bottom = 6.dp),
-                        )
+                Box {
+                    Column(Modifier.padding(horizontal = 10.dp, vertical = 10.dp)) {
+                        if (!g.name.isNullOrBlank()) {
+                            Text(
+                                text = g.name,
+                                color = LabelPrimary,
+                                fontWeight = FontWeight.SemiBold,
+                                fontSize = 14.sp,
+                                modifier = Modifier.padding(start = 4.dp, bottom = 6.dp),
+                            )
+                        }
+                        AppGrid(g.packages.map { SidebarItem.app(it) }, COLUMNS, appMap, showLabels, Modifier, onLaunch)
                     }
-                    AppGrid(g.packages.map { SidebarItem.app(it) }, COLUMNS, appMap, showLabels, Modifier, onLaunch)
+                    // Sunken look: an inner shadow hugging the group's edge.
+                    if (groupStyle.insetDp > 0f) {
+                        Box(Modifier.matchParentSize().drawBehind { drawInnerShadow(groupStyle.cornerDp.dp.toPx(), groupStyle.insetDp) })
+                    }
                 }
             }
         }
@@ -567,11 +645,7 @@ private fun AppGrid(
                         } else {
                             val app = item.packageName?.let { appMap[it] }
                             if (app != null) {
-                                AppTile(
-                                    label = app.label,
-                                    bitmap = remember(app.packageName) { app.icon.toBitmap(144, 144).asImageBitmap() },
-                                    showLabel = showLabels,
-                                ) { onLaunch(app.packageName) }
+                                AppTile(app = app, showLabel = showLabels) { onLaunch(app.packageName) }
                             }
                         }
                     }
@@ -608,9 +682,15 @@ private fun Tile(label: String, showLabel: Boolean, onClick: () -> Unit, icon: @
 }
 
 @Composable
-private fun AppTile(label: String, bitmap: ImageBitmap, showLabel: Boolean = true, onClick: () -> Unit) {
-    Tile(label, showLabel, onClick) {
-        Image(bitmap = bitmap, contentDescription = label, modifier = Modifier.size(50.dp).clip(RoundedCornerShape(12.dp)))
+private fun AppTile(app: AppInfo, showLabel: Boolean = true, onClick: () -> Unit) {
+    val style = LocalIconStyle.current
+    val bitmap = remember(app.packageName, style.themed) {
+        (if (style.themed) themedIconBitmap(app.icon, 144, style.fg, style.bg) else null)
+            ?.asImageBitmap()
+            ?: app.icon.toBitmap(144, 144).asImageBitmap()
+    }
+    Tile(app.label, showLabel, onClick) {
+        Image(bitmap = bitmap, contentDescription = app.label, modifier = Modifier.size(50.dp).clip(RoundedCornerShape(12.dp)))
     }
 }
 

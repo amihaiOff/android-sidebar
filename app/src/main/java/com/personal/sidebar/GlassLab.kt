@@ -50,6 +50,7 @@ import androidx.compose.ui.unit.sp
 import com.personal.sidebar.model.FolderConfig
 import com.personal.sidebar.model.GroupConfig
 import com.personal.sidebar.model.PanelConfig
+import com.personal.sidebar.ui.drawInnerShadow
 import com.personal.sidebar.ui.drawSideShadows
 import kotlin.math.roundToInt
 
@@ -118,6 +119,7 @@ internal fun GlassLabScreen(
         LabSlider("Edge stroke", p.edgeDp, 0f..4f, "${p.edgeDp.roundToInt()} dp") { setP(p.copy(edgeDp = it)) }
         LabSlider("Corner radius", p.cornerDp.toFloat(), 0f..48f, "${p.cornerDp} dp") { setP(p.copy(cornerDp = it.roundToInt())) }
         ToggleRow("Show app names", p.showLabels) { setP(p.copy(showLabels = it)) }
+        ToggleRow("Themed icons (Android 13+)", p.themedIcons) { setP(p.copy(themedIcons = it)) }
         Text("Background", style = MaterialTheme.typography.labelLarge, modifier = Modifier.padding(top = 8.dp))
         Row(Modifier.padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             LAB_SWATCHES.forEach { rgb ->
@@ -155,6 +157,7 @@ internal fun GlassLabScreen(
         LabSlider("Border brightness", g.borderBrightness, 0f..1f, "${(g.borderBrightness * 100).roundToInt()}%") { setG(g.copy(borderBrightness = it)) }
         LabSlider("Corner radius", g.cornerDp.toFloat(), 0f..32f, "${g.cornerDp} dp") { setG(g.copy(cornerDp = it.roundToInt())) }
         LabSlider("Shadow", g.shadowDp, 0f..24f, "${g.shadowDp.roundToInt()} dp") { setG(g.copy(shadowDp = it)) }
+        LabSlider("Sunken inset", g.insetDp, 0f..24f, "${g.insetDp.roundToInt()} dp") { setG(g.copy(insetDp = it)) }
     }
 }
 
@@ -222,16 +225,21 @@ private fun GlassPreview(p: PanelConfig, f: FolderConfig, g: GroupConfig) {
                     shadowElevation = g.shadowDp.dp,
                     border = if (g.borderDp > 0f) BorderStroke(g.borderDp.dp, Color.White.copy(alpha = g.borderBrightness.coerceIn(0f, 1f))) else null,
                 ) {
-                    Column(Modifier.padding(8.dp)) {
-                        Box(
-                            Modifier
-                                .size(width = 46.dp, height = 6.dp)
-                                .clip(RoundedCornerShape(3.dp))
-                                .background(Color.White.copy(alpha = 0.55f))
-                        )
-                        Spacer(Modifier.height(8.dp))
-                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                            repeat(4) { AppPlaceholder(showLabel = p.showLabels) }
+                    Box {
+                        Column(Modifier.padding(8.dp)) {
+                            Box(
+                                Modifier
+                                    .size(width = 46.dp, height = 6.dp)
+                                    .clip(RoundedCornerShape(3.dp))
+                                    .background(Color.White.copy(alpha = 0.55f))
+                            )
+                            Spacer(Modifier.height(8.dp))
+                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                                repeat(4) { AppPlaceholder(showLabel = p.showLabels) }
+                            }
+                        }
+                        if (g.insetDp > 0f) {
+                            Box(Modifier.matchParentSize().drawBehind { drawInnerShadow(g.cornerDp.dp.toPx(), g.insetDp) })
                         }
                     }
                 }
