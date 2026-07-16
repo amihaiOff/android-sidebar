@@ -313,15 +313,16 @@ private fun PanelCard(
                 BottomBar(recents = recents, appMap = appMap, onLaunch = onLaunch)
             }
         }
-        // Settings gear, tucked into the top-right corner of the panel.
+        // Settings gear, up in the very top-right corner — in the status-bar
+        // strip, not pushed below it.
         IconButton(
             onClick = onOpenSettings,
             modifier = Modifier
                 .align(Alignment.TopEnd)
-                .padding(top = systemPadding.calculateTopPadding() + 4.dp, end = 4.dp)
-                .size(34.dp),
+                .padding(top = 2.dp, end = 4.dp)
+                .size(32.dp),
         ) {
-            Icon(Icons.Filled.Settings, contentDescription = "Settings", tint = LabelSecondary, modifier = Modifier.size(20.dp))
+            Icon(Icons.Filled.Settings, contentDescription = "Settings", tint = LabelSecondary, modifier = Modifier.size(18.dp))
         }
     }
 }
