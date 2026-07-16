@@ -42,11 +42,13 @@ running handle re-arms on each change):
   dims the rest of the panel to focus on it. Edit/delete folders from settings.
 - **Reorder** — long-press the drag handle on any item in the settings list to
   drag it up or down; the new order is what the panel shows.
-- **Panel & glass (the lab)** — all the panel's frosted-glass controls live in
-  one screen (Appearance → **Panel & glass…**): frost/blur, tint opacity,
-  brightness (near-black → white), edge stroke, and background colour/dim — each
-  wired to a live preview that renders the panel over a stand-in wallpaper.
-  Changes apply on back. A thin white glass edge is drawn around the panel.
+- **Panel & glass (the lab)** — all panel + folder look controls in one screen
+  (Appearance → **Panel & glass…**), each wired to a live preview: panel tint
+  opacity, brightness (near-black → white), edge stroke, background colour/dim;
+  and folder opacity, brightness, edge, columns and corner radius. Changes apply
+  on back. Effects stay **inside the panel** — a translucent frosted tint rather
+  than a real backdrop blur, because a per-window blur can't be confined to an
+  overlay's bounds on Android (the platform blur covers the whole screen).
 
 Config is stored as JSON in SharedPreferences (`kotlinx.serialization`).
 

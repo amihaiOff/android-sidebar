@@ -50,6 +50,7 @@ class PanelController(private val context: Context) {
                     edge = config.handle.edge,
                     items = config.items,
                     panel = config.panel,
+                    folder = config.folder,
                     registerDismiss = { dismissTrigger = it },
                     onDismissed = { hide() },
                 )
@@ -77,7 +78,7 @@ class PanelController(private val context: Context) {
 
         // Wire lifecycle/owners BEFORE the view attaches to the window.
         newHost.attach(view)
-        windowManager.addView(view, panelParams(config.handle.edge, config.panel.blurDp))
+        windowManager.addView(view, panelParams(config.handle.edge))
         view.requestFocus()
 
         composeView = view
@@ -93,7 +94,7 @@ class PanelController(private val context: Context) {
         runCatching { windowManager.removeView(view) }
     }
 
-    private fun panelParams(edge: Edge, blurDp: Int): WindowManager.LayoutParams {
+    private fun panelParams(edge: Edge): WindowManager.LayoutParams {
         val metrics = context.resources.displayMetrics
         val density = metrics.density
         val width = (metrics.widthPixels * PANEL_WIDTH_FRACTION)
@@ -106,6 +107,12 @@ class PanelController(private val context: Context) {
             // Focusable (back key) + touch-modal so outside taps don't reach apps
             // behind; FLAG_WATCH_OUTSIDE_TOUCH delivers ACTION_OUTSIDE so we can
             // dismiss on an outside tap.
+            //
+            // Note: no FLAG_BLUR_BEHIND. That flag blurs the ENTIRE screen behind
+            // the window (not just its bounds), and per-window background blur
+            // isn't available to WindowManager overlays — so a real backdrop blur
+            // can't be confined to the panel. We keep all effects inside the panel
+            // via a translucent tint instead.
             WindowManager.LayoutParams.FLAG_HARDWARE_ACCELERATED or
                 WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
                 WindowManager.LayoutParams.FLAG_WATCH_OUTSIDE_TOUCH,
@@ -115,12 +122,6 @@ class PanelController(private val context: Context) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
             params.layoutInDisplayCutoutMode =
                 WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES
-        }
-        // Real backdrop blur (frosted glass) on Android 12+, when the device
-        // supports cross-window blur. Confined to this (panel-sized) window.
-        if (blurDp > 0 && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && windowManager.isCrossWindowBlurEnabled) {
-            params.flags = params.flags or WindowManager.LayoutParams.FLAG_BLUR_BEHIND
-            params.blurBehindRadius = (blurDp * density).toInt()
         }
         return params
     }

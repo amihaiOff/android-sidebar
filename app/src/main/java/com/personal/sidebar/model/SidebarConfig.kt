@@ -59,10 +59,26 @@ data class PanelConfig(
     val edgeDp: Float = 1f,
 )
 
+/** Appearance of a folder card (a "nested glass" layer inside the panel). */
+@Serializable
+data class FolderConfig(
+    /** Folder tint opacity — usually higher than the panel so it reads closer. */
+    val opacity: Float = 0.9f,
+    /** Folder tint lightness: 0 = near-black, 1 = white. */
+    val brightness: Float = 0.45f,
+    /** Folder edge stroke width in dp; 0 = none. */
+    val edgeDp: Float = 1.5f,
+    /** Apps per row inside a folder. */
+    val columns: Int = 3,
+    /** Folder corner radius in dp. */
+    val cornerDp: Int = 20,
+)
+
 /** The whole persisted sidebar configuration. */
 @Serializable
 data class SidebarConfig(
     val handle: HandleConfig = HandleConfig(),
     val panel: PanelConfig = PanelConfig(),
+    val folder: FolderConfig = FolderConfig(),
     val items: List<SidebarItem> = emptyList(),
 )

@@ -1,6 +1,5 @@
 package com.personal.sidebar
 
-import android.os.Build
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -33,17 +32,16 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.DrawScope
-import androidx.compose.ui.layout.onGloballyPositioned
-import androidx.compose.ui.layout.positionInParent
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.personal.sidebar.model.FolderConfig
 import com.personal.sidebar.model.PanelConfig
 import kotlin.math.roundToInt
 
@@ -52,7 +50,7 @@ private val LAB_SWATCHES = listOf(
     0xFF4C5BD4.toInt(), 0xFF2196F3.toInt(), 0xFF9C27B0.toInt(), 0xFFFFFFFF.toInt(),
 )
 
-/** Panel tint grey from the brightness setting (0 = near-black, 1 = white). */
+/** Grey tint from a brightness setting (0 = near-black, 1 = white). */
 private fun labTint(brightness: Float): Color {
     val c = (16 + brightness.coerceIn(0f, 1f) * 239).toInt().coerceIn(0, 255)
     return Color(c, c, c)
@@ -62,18 +60,20 @@ private fun labWithRgb(argb: Int, rgb: Int): Int =
     (argb.toLong() and 0xFF000000L).toInt() or (rgb and 0x00FFFFFF)
 
 /**
- * The single place to tune the frosted-glass panel. Every control edits a live
- * [PanelConfig] reflected in the preview; changes are committed on back.
+ * The single place to tune the panel + folder look. Every control edits a live
+ * [PanelConfig] / [FolderConfig] reflected in the preview; committed on back.
  */
 @Composable
 internal fun GlassLabScreen(
     modifier: Modifier,
     panel: PanelConfig,
-    onCommit: (PanelConfig) -> Unit,
+    folder: FolderConfig,
+    onCommit: (PanelConfig, FolderConfig) -> Unit,
     onBack: () -> Unit,
 ) {
     var p by remember { mutableStateOf(panel) }
-    fun done() { onCommit(p); onBack() }
+    var f by remember { mutableStateOf(folder) }
+    fun done() { onCommit(p, f); onBack() }
 
     Column(
         modifier
@@ -86,23 +86,22 @@ internal fun GlassLabScreen(
             Text("Panel & glass", style = MaterialTheme.typography.titleLarge)
         }
         Text(
-            "Everything that controls the panel's frosted-glass look lives here. " +
-                "The preview updates live and is applied when you go back.",
+            "Everything that controls the panel and folder look lives here. The " +
+                "preview updates live and is applied when you go back. Effects stay " +
+                "inside the panel — nothing touches the rest of the screen.",
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.padding(top = 4.dp, bottom = 14.dp),
         )
 
-        GlassPreview(p)
+        GlassPreview(p, f)
 
         Spacer(Modifier.height(16.dp))
-        LabSlider("Frost (blur)", p.blurDp.toFloat(), 0f..80f, "${p.blurDp} dp") { p = p.copy(blurDp = it.toInt()) }
+        SectionLabel("Panel")
         LabSlider("Tint opacity", p.opacity, 0.1f..1f, "${(p.opacity * 100).roundToInt()}%") { p = p.copy(opacity = it) }
         LabSlider("Brightness", p.brightness, 0f..1f, "${(p.brightness * 100).roundToInt()}%") { p = p.copy(brightness = it) }
         LabSlider("Edge stroke", p.edgeDp, 0f..4f, "${p.edgeDp.roundToInt()} dp") { p = p.copy(edgeDp = it) }
-
-        Spacer(Modifier.height(12.dp))
-        Text("Background", style = MaterialTheme.typography.labelLarge)
+        Text("Background", style = MaterialTheme.typography.labelLarge, modifier = Modifier.padding(top = 8.dp))
         Row(Modifier.padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             LAB_SWATCHES.forEach { rgb ->
                 ColorDot(
@@ -114,52 +113,43 @@ internal fun GlassLabScreen(
         }
         LabSlider("Background dim", p.scrimAlpha, 0f..0.85f, "${(p.scrimAlpha * 100).roundToInt()}%") { p = p.copy(scrimAlpha = it) }
 
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) {
-            Text(
-                "Note: live blur needs Android 12+. Below that only tint + edge render.",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.error,
-                modifier = Modifier.padding(top = 10.dp),
-            )
-        }
+        Spacer(Modifier.height(16.dp))
+        SectionLabel("Folder")
+        LabSlider("Folder opacity", f.opacity, 0.2f..1f, "${(f.opacity * 100).roundToInt()}%") { f = f.copy(opacity = it) }
+        LabSlider("Folder brightness", f.brightness, 0f..1f, "${(f.brightness * 100).roundToInt()}%") { f = f.copy(brightness = it) }
+        LabSlider("Folder edge", f.edgeDp, 0f..4f, "${f.edgeDp.roundToInt()} dp") { f = f.copy(edgeDp = it) }
+        LabSlider("Folder columns", f.columns.toFloat(), 2f..5f, "${f.columns}") { f = f.copy(columns = it.roundToInt()) }
+        LabSlider("Folder corners", f.cornerDp.toFloat(), 0f..32f, "${f.cornerDp} dp") { f = f.copy(cornerDp = it.roundToInt()) }
     }
 }
 
 @Composable
-private fun GlassPreview(p: PanelConfig) {
+private fun GlassPreview(p: PanelConfig, f: FolderConfig) {
     BoxWithConstraints(
         Modifier
             .fillMaxWidth()
-            .height(280.dp)
+            .height(300.dp)
             .clip(RoundedCornerShape(20.dp)),
     ) {
         val density = LocalDensity.current
         val boxWpx = with(density) { maxWidth.toPx() }
         val boxHpx = with(density) { maxHeight.toPx() }
         val shape = RoundedCornerShape(topStart = 22.dp, bottomStart = 22.dp)
-        val previewBlur = minOf(p.blurDp, 40)
 
-        // Muted "wallpaper" behind the panel.
-        Box(Modifier.matchParentSize().drawBehind { drawScene(Offset.Zero, boxWpx, boxHpx) })
+        // Muted "wallpaper" behind the panel. Stays sharp — no effects escape
+        // the panel, exactly like the real overlay.
+        Box(Modifier.matchParentSize().drawBehind { drawScene(boxWpx, boxHpx) })
 
-        var pos by remember { mutableStateOf(Offset.Zero) }
         Box(
             modifier = Modifier
                 .align(Alignment.CenterEnd)
                 .fillMaxWidth(0.62f)
                 .fillMaxSize()
-                .onGloballyPositioned { pos = it.positionInParent() }
                 .clip(shape)
                 .border(p.edgeDp.dp, Color.White.copy(alpha = 0.3f), shape),
         ) {
-            // Blurred wallpaper slice.
-            Box(
-                Modifier
-                    .matchParentSize()
-                    .then(if (previewBlur > 0) Modifier.blur(previewBlur.dp) else Modifier)
-                    .drawBehind { drawScene(pos, boxWpx, boxHpx) }
-            )
-            // Background scrim, then the panel tint.
+            // Background scrim, then the translucent panel tint (wallpaper shows
+            // through it — that's the frosted-glass feel without a blur).
             Box(Modifier.matchParentSize().background(Color(p.scrimColor).copy(alpha = p.scrimAlpha.coerceIn(0f, 1f))))
             Box(Modifier.matchParentSize().background(labTint(p.brightness).copy(alpha = p.opacity.coerceIn(0.1f, 1f))))
 
@@ -167,7 +157,7 @@ private fun GlassPreview(p: PanelConfig) {
                 Modifier.fillMaxSize().padding(12.dp),
                 verticalArrangement = Arrangement.spacedBy(10.dp),
             ) {
-                PreviewFolder(p)
+                PreviewFolder(f)
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     repeat(3) { AppPlaceholder() }
                 }
@@ -176,15 +166,16 @@ private fun GlassPreview(p: PanelConfig) {
     }
 }
 
-/** A mock of the nested-glass folder inside the preview. */
+/** Mock of the nested-glass folder inside the preview. */
 @Composable
-private fun PreviewFolder(p: PanelConfig) {
-    val folderTint = labTint(p.brightness).copy(alpha = (p.opacity + 0.28f).coerceIn(0.4f, 1f))
+private fun PreviewFolder(f: FolderConfig) {
+    val folderTint = labTint(f.brightness).copy(alpha = f.opacity.coerceIn(0f, 1f))
+    val shape = RoundedCornerShape(f.cornerDp.dp)
     Surface(
-        shape = RoundedCornerShape(16.dp),
+        shape = shape,
         color = folderTint,
         shadowElevation = 12.dp,
-        border = BorderStroke(1.5.dp, Color.White.copy(alpha = 0.4f)),
+        border = if (f.edgeDp > 0f) BorderStroke(f.edgeDp.dp, Color.White.copy(alpha = 0.4f)) else null,
         modifier = Modifier.fillMaxWidth(),
     ) {
         Column(Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -195,24 +186,24 @@ private fun PreviewFolder(p: PanelConfig) {
                     .background(Color.White.copy(alpha = 0.5f))
             )
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                repeat(3) { AppPlaceholder() }
+                repeat(f.columns.coerceIn(2, 5)) { AppPlaceholder() }
             }
         }
     }
 }
 
-private fun DrawScope.drawScene(origin: Offset, wpx: Float, hpx: Float) {
+private fun DrawScope.drawScene(wpx: Float, hpx: Float) {
     drawRect(
         brush = Brush.linearGradient(
             listOf(Color(0xFF1F2933), Color(0xFF323D46), Color(0xFF29343C)),
-            start = Offset(0f, 0f) - origin,
-            end = Offset(wpx, hpx) - origin,
+            start = Offset(0f, 0f),
+            end = Offset(wpx, hpx),
         ),
         size = size,
     )
-    drawCircle(Color(0x554FC3F7), radius = 70.dp.toPx(), center = Offset(0.22f * wpx, 0.30f * hpx) - origin)
-    drawCircle(Color(0x55FF8A65), radius = 92.dp.toPx(), center = Offset(0.74f * wpx, 0.38f * hpx) - origin)
-    drawCircle(Color(0x5581C784), radius = 80.dp.toPx(), center = Offset(0.48f * wpx, 0.84f * hpx) - origin)
+    drawCircle(Color(0x554FC3F7), radius = 70.dp.toPx(), center = Offset(0.22f * wpx, 0.30f * hpx))
+    drawCircle(Color(0x55FF8A65), radius = 92.dp.toPx(), center = Offset(0.74f * wpx, 0.38f * hpx))
+    drawCircle(Color(0x5581C784), radius = 80.dp.toPx(), center = Offset(0.48f * wpx, 0.84f * hpx))
 }
 
 @Composable
@@ -232,6 +223,11 @@ private fun AppPlaceholder() {
                 .background(Color.White.copy(alpha = 0.45f))
         )
     }
+}
+
+@Composable
+private fun SectionLabel(text: String) {
+    Text(text, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(bottom = 2.dp))
 }
 
 @Composable

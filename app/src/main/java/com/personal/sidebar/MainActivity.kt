@@ -136,7 +136,10 @@ private fun SidebarRoot() {
             Screen.GlassLab -> GlassLabScreen(
                 modifier = mod,
                 panel = config.panel,
-                onCommit = { newPanel -> commit(config.copy(panel = newPanel)) },
+                folder = config.folder,
+                onCommit = { newPanel, newFolder ->
+                    commit(config.copy(panel = newPanel, folder = newFolder))
+                },
                 onBack = { screen = Screen.Home },
             )
 

@@ -61,6 +61,7 @@ import androidx.core.graphics.drawable.toBitmap
 import com.personal.sidebar.Edge
 import com.personal.sidebar.apps.AppInfo
 import com.personal.sidebar.apps.AppRepository
+import com.personal.sidebar.model.FolderConfig
 import com.personal.sidebar.model.ItemType
 import com.personal.sidebar.model.PanelConfig
 import com.personal.sidebar.model.SidebarItem
@@ -74,7 +75,6 @@ private fun panelColor(brightness: Float): Color {
     return Color(c, c, c)
 }
 private const val COLUMNS = 4
-private const val FOLDER_COLUMNS = 3
 
 /**
  * Full-screen overlay content: a translucent scrim plus a dark rounded panel
@@ -88,6 +88,7 @@ fun SidebarPanel(
     edge: Edge,
     items: List<SidebarItem>,
     panel: PanelConfig,
+    folder: FolderConfig,
     registerDismiss: (() -> Unit) -> Unit,
     onDismissed: () -> Unit,
 ) {
@@ -122,6 +123,7 @@ fun SidebarPanel(
                 items = items,
                 appMap = appMap,
                 panel = panel,
+                folder = folder,
             ) { pkg ->
                 AppRepository.launch(context, pkg)
                 dismiss()
@@ -136,6 +138,7 @@ private fun PanelCard(
     items: List<SidebarItem>,
     appMap: Map<String, AppInfo>?,
     panel: PanelConfig,
+    folder: FolderConfig,
     onLaunch: (String) -> Unit,
 ) {
     val shape = if (edge == Edge.LEFT) {
@@ -206,7 +209,7 @@ private fun PanelCard(
                                     FolderSection(
                                         folder = entry,
                                         appMap = appMap,
-                                        panel = panel,
+                                        style = folder,
                                         isExpanded = isOpen,
                                         onToggle = { openKey = if (isOpen) null else fkey },
                                         onLaunch = onLaunch,
@@ -240,24 +243,22 @@ private fun PanelCard(
 private fun FolderSection(
     folder: SidebarItem,
     appMap: Map<String, AppInfo>,
-    panel: PanelConfig,
+    style: FolderConfig,
     isExpanded: Boolean,
     onToggle: () -> Unit,
     onLaunch: (String) -> Unit,
 ) {
-    // Nested glass: a closer layer than the panel — a more opaque tint + a
-    // brighter edge + a stronger shadow give it depth. (A separate backdrop
-    // blur per element isn't possible with a single window blur, so the extra
-    // opacity carries the "closer glass" feel.)
-    val folderTint = panelColor(panel.brightness)
-        .copy(alpha = (panel.opacity + 0.28f).coerceIn(0.4f, 1f))
+    // Nested glass: a closer layer than the panel — its own (usually more
+    // opaque) tint + a bright edge + a shadow give it depth.
+    val folderTint = panelColor(style.brightness).copy(alpha = style.opacity.coerceIn(0f, 1f))
+    val shape = RoundedCornerShape(style.cornerDp.dp)
     Surface(
         modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp),
-        shape = RoundedCornerShape(20.dp),
+        shape = shape,
         color = folderTint,
         shadowElevation = 14.dp,
         tonalElevation = 0.dp,
-        border = BorderStroke(1.5.dp, Color.White.copy(alpha = 0.4f)),
+        border = if (style.edgeDp > 0f) BorderStroke(style.edgeDp.dp, Color.White.copy(alpha = 0.4f)) else null,
     ) {
         Column(Modifier.padding(horizontal = 10.dp, vertical = 6.dp)) {
             Row(
@@ -288,8 +289,9 @@ private fun FolderSection(
                     modifier = Modifier.padding(top = 2.dp, bottom = 4.dp),
                     verticalArrangement = Arrangement.spacedBy(6.dp),
                 ) {
+                    val cols = style.columns.coerceIn(2, 5)
                     val members = folder.packages.mapNotNull { appMap[it] }
-                    members.chunked(FOLDER_COLUMNS).forEach { rowApps ->
+                    members.chunked(cols).forEach { rowApps ->
                         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(2.dp)) {
                             rowApps.forEach { app ->
                                 Box(Modifier.weight(1f)) {
@@ -299,7 +301,7 @@ private fun FolderSection(
                                     ) { onLaunch(app.packageName) }
                                 }
                             }
-                            repeat(FOLDER_COLUMNS - rowApps.size) { Box(Modifier.weight(1f)) }
+                            repeat(cols - rowApps.size) { Box(Modifier.weight(1f)) }
                         }
                     }
                 }
