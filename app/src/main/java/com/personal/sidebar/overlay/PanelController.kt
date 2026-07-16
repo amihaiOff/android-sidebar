@@ -10,6 +10,7 @@ import android.view.Gravity
 import android.view.KeyEvent
 import android.view.WindowManager
 import androidx.compose.ui.platform.ComposeView
+import androidx.core.view.WindowCompat
 import com.personal.sidebar.Edge
 import com.personal.sidebar.model.SidebarConfig
 import com.personal.sidebar.ui.SidebarPanel
@@ -85,6 +86,12 @@ class PanelController(private val context: Context) {
         d.window?.apply {
             setType(WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY)
             setWindowAnimations(0) // Compose drives the slide; no dialog scale/fade
+            // Draw edge-to-edge with transparent system bars, so the panel's
+            // blur/tint fill the status- and nav-bar regions instead of the
+            // dialog painting an opaque (black) bar there.
+            WindowCompat.setDecorFitsSystemWindows(this, false)
+            statusBarColor = Color.TRANSPARENT
+            navigationBarColor = Color.TRANSPARENT
             // Transparent, rounded background: defines the window outline the
             // background blur is clipped to (so the blur has rounded corners).
             val r = config.panel.cornerDp * density
