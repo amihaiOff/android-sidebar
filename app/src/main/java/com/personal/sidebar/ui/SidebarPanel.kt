@@ -141,10 +141,11 @@ private fun PanelCard(
     folder: FolderConfig,
     onLaunch: (String) -> Unit,
 ) {
+    val corner = panel.cornerDp.dp
     val shape = if (edge == Edge.LEFT) {
-        RoundedCornerShape(topEnd = 28.dp, bottomEnd = 28.dp)
+        RoundedCornerShape(topEnd = corner, bottomEnd = corner)
     } else {
-        RoundedCornerShape(topStart = 28.dp, bottomStart = 28.dp)
+        RoundedCornerShape(topStart = corner, bottomStart = corner)
     }
     val systemPadding = WindowInsets.safeDrawing.asPaddingValues()
     // One folder open at a time; when open, everything else dims (focus).

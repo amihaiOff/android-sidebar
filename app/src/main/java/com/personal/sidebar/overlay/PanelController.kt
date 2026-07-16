@@ -87,7 +87,7 @@ class PanelController(private val context: Context) {
             setWindowAnimations(0) // Compose drives the slide; no dialog scale/fade
             // Transparent, rounded background: defines the window outline the
             // background blur is clipped to (so the blur has rounded corners).
-            val r = 28 * density
+            val r = config.panel.cornerDp * density
             val radii = if (edge == Edge.LEFT) {
                 floatArrayOf(0f, 0f, r, r, r, r, 0f, 0f)
             } else {

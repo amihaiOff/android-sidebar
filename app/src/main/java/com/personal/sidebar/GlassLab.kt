@@ -105,6 +105,7 @@ internal fun GlassLabScreen(
         LabSlider("Tint opacity", p.opacity, 0.1f..1f, "${(p.opacity * 100).roundToInt()}%") { p = p.copy(opacity = it) }
         LabSlider("Brightness", p.brightness, 0f..1f, "${(p.brightness * 100).roundToInt()}%") { p = p.copy(brightness = it) }
         LabSlider("Edge stroke", p.edgeDp, 0f..4f, "${p.edgeDp.roundToInt()} dp") { p = p.copy(edgeDp = it) }
+        LabSlider("Corner radius", p.cornerDp.toFloat(), 0f..48f, "${p.cornerDp} dp") { p = p.copy(cornerDp = it.roundToInt()) }
         Text("Background", style = MaterialTheme.typography.labelLarge, modifier = Modifier.padding(top = 8.dp))
         Row(Modifier.padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             LAB_SWATCHES.forEach { rgb ->
@@ -138,7 +139,7 @@ private fun GlassPreview(p: PanelConfig, f: FolderConfig) {
         val density = LocalDensity.current
         val boxWpx = with(density) { maxWidth.toPx() }
         val boxHpx = with(density) { maxHeight.toPx() }
-        val shape = RoundedCornerShape(topStart = 22.dp, bottomStart = 22.dp)
+        val shape = RoundedCornerShape(topStart = p.cornerDp.dp, bottomStart = p.cornerDp.dp)
         val previewBlur = minOf(p.blurDp, 40)
 
         // Muted "wallpaper" behind the panel. Stays sharp outside the panel —

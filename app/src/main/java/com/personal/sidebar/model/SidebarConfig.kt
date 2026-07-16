@@ -57,6 +57,8 @@ data class PanelConfig(
     val scrimAlpha: Float = 0.25f,
     /** White "glass edge" stroke width in dp; 0 = no edge. */
     val edgeDp: Float = 1f,
+    /** Corner radius (dp) of the panel's inner edge. */
+    val cornerDp: Int = 28,
 )
 
 /** Appearance of a folder card (a "nested glass" layer inside the panel). */
