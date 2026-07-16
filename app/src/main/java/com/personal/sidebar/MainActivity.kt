@@ -151,8 +151,9 @@ private fun SidebarRoot() {
                 modifier = mod,
                 panel = config.panel,
                 folder = config.folder,
-                onChange = { newPanel, newFolder ->
-                    persist(config.copy(panel = newPanel, folder = newFolder))
+                group = config.group,
+                onChange = { newPanel, newFolder, newGroup ->
+                    persist(config.copy(panel = newPanel, folder = newFolder, group = newGroup))
                 },
                 onBack = { screen = Screen.Home },
             )

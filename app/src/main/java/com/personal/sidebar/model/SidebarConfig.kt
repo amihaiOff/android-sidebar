@@ -94,11 +94,25 @@ data class FolderConfig(
     val shadowRightDp: Float = 4f,
 )
 
+/** Appearance of an inline titled group's container (a subtle framed section). */
+@Serializable
+data class GroupConfig(
+    /** Border stroke width in dp; 0 = none. */
+    val borderDp: Float = 1f,
+    /** Border visibility: a white stroke at this opacity (0 = invisible, 1 = bright). */
+    val borderBrightness: Float = 0.12f,
+    /** Drop-shadow elevation in dp; 0 = flat. */
+    val shadowDp: Float = 0f,
+    /** Corner radius in dp. */
+    val cornerDp: Int = 16,
+)
+
 /** The whole persisted sidebar configuration. */
 @Serializable
 data class SidebarConfig(
     val handle: HandleConfig = HandleConfig(),
     val panel: PanelConfig = PanelConfig(),
     val folder: FolderConfig = FolderConfig(),
+    val group: GroupConfig = GroupConfig(),
     val items: List<SidebarItem> = emptyList(),
 )

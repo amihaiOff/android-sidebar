@@ -48,6 +48,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.personal.sidebar.model.FolderConfig
+import com.personal.sidebar.model.GroupConfig
 import com.personal.sidebar.model.PanelConfig
 import com.personal.sidebar.ui.drawSideShadows
 import kotlin.math.roundToInt
@@ -75,15 +76,18 @@ internal fun GlassLabScreen(
     modifier: Modifier,
     panel: PanelConfig,
     folder: FolderConfig,
-    onChange: (PanelConfig, FolderConfig) -> Unit,
+    group: GroupConfig,
+    onChange: (PanelConfig, FolderConfig, GroupConfig) -> Unit,
     onBack: () -> Unit,
 ) {
     var p by remember { mutableStateOf(panel) }
     var f by remember { mutableStateOf(folder) }
+    var g by remember { mutableStateOf(group) }
     // Apply every change immediately (persisted live), so it takes effect right
     // away and is never lost by leaving the screen without going back.
-    fun setP(np: PanelConfig) { p = np; onChange(np, f) }
-    fun setF(nf: FolderConfig) { f = nf; onChange(p, nf) }
+    fun setP(np: PanelConfig) { p = np; onChange(np, f, g) }
+    fun setF(nf: FolderConfig) { f = nf; onChange(p, nf, g) }
+    fun setG(ng: GroupConfig) { g = ng; onChange(p, f, ng) }
 
     Column(
         modifier
@@ -104,7 +108,7 @@ internal fun GlassLabScreen(
             modifier = Modifier.padding(top = 4.dp, bottom = 14.dp),
         )
 
-        GlassPreview(p, f)
+        GlassPreview(p, f, g)
 
         Spacer(Modifier.height(16.dp))
         SectionLabel("Panel")
@@ -138,11 +142,24 @@ internal fun GlassLabScreen(
         LabSlider("Shadow bottom", f.shadowBottomDp, 0f..30f, "${f.shadowBottomDp.roundToInt()} dp") { setF(f.copy(shadowBottomDp = it)) }
         LabSlider("Shadow left", f.shadowLeftDp, 0f..30f, "${f.shadowLeftDp.roundToInt()} dp") { setF(f.copy(shadowLeftDp = it)) }
         LabSlider("Shadow right", f.shadowRightDp, 0f..30f, "${f.shadowRightDp.roundToInt()} dp") { setF(f.copy(shadowRightDp = it)) }
+
+        Spacer(Modifier.height(16.dp))
+        SectionLabel("Group frame")
+        Text(
+            "A subtle border around each titled group in the main panel.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(bottom = 2.dp),
+        )
+        LabSlider("Border width", g.borderDp, 0f..4f, "${(g.borderDp * 10).roundToInt() / 10f} dp") { setG(g.copy(borderDp = it)) }
+        LabSlider("Border brightness", g.borderBrightness, 0f..1f, "${(g.borderBrightness * 100).roundToInt()}%") { setG(g.copy(borderBrightness = it)) }
+        LabSlider("Corner radius", g.cornerDp.toFloat(), 0f..32f, "${g.cornerDp} dp") { setG(g.copy(cornerDp = it.roundToInt())) }
+        LabSlider("Shadow", g.shadowDp, 0f..24f, "${g.shadowDp.roundToInt()} dp") { setG(g.copy(shadowDp = it)) }
     }
 }
 
 @Composable
-private fun GlassPreview(p: PanelConfig, f: FolderConfig) {
+private fun GlassPreview(p: PanelConfig, f: FolderConfig, g: GroupConfig) {
     BoxWithConstraints(
         Modifier
             .fillMaxWidth()
@@ -192,10 +209,31 @@ private fun GlassPreview(p: PanelConfig, f: FolderConfig) {
                 }
                 // Open folder contents, directly below (no divider).
                 PreviewFolderExpanded(f)
-                Spacer(Modifier.height(18.dp))
+                Spacer(Modifier.height(8.dp))
                 // Loose apps row.
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     repeat(4) { AppPlaceholder(showLabel = p.showLabels) }
+                }
+                // A titled group frame.
+                Surface(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(g.cornerDp.dp),
+                    color = Color.Transparent,
+                    shadowElevation = g.shadowDp.dp,
+                    border = if (g.borderDp > 0f) BorderStroke(g.borderDp.dp, Color.White.copy(alpha = g.borderBrightness.coerceIn(0f, 1f))) else null,
+                ) {
+                    Column(Modifier.padding(8.dp)) {
+                        Box(
+                            Modifier
+                                .size(width = 46.dp, height = 6.dp)
+                                .clip(RoundedCornerShape(3.dp))
+                                .background(Color.White.copy(alpha = 0.55f))
+                        )
+                        Spacer(Modifier.height(8.dp))
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                            repeat(4) { AppPlaceholder(showLabel = p.showLabels) }
+                        }
+                    }
                 }
             }
         }

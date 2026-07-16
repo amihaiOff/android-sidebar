@@ -54,15 +54,16 @@ running handle re-arms on each change):
   the **Usage access** permission granted these are phone-wide (whatever you
   used most recently on the device); otherwise they fall back to the apps most
   recently launched from the sidebar.
-- **Settings gear** — a gear at the bottom-left of the panel opens the app's
-  settings.
+- **Settings gear** — a gear in the top-right corner of the panel opens the
+  app's settings.
 - **Reorder** — long-press the drag handle on any item in the settings list to
   drag it up or down; the new order is what the panel shows.
 - **Panel & glass (the lab)** — all panel + folder look controls in one screen
   (Appearance → **Panel & glass…**), each wired to a live preview: panel frost
   (blur), tint opacity, brightness (near-black → white), edge stroke, background
-  colour/dim; and folder opacity, brightness, edge, columns and corner radius.
-  Changes apply on back.
+  colour/dim; folder opacity, brightness, edge, columns and corner radius; and a
+  **group frame** (a subtle border around each titled group — width, brightness,
+  corner radius and shadow). Changes apply immediately.
 - **Real, panel-confined blur.** The panel is hosted in a `Dialog` (a real
   `Window`, typed as a system overlay) so it can use
   `Window.setBackgroundBlurRadius` — a hardware backdrop blur clipped to the

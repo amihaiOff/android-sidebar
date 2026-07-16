@@ -88,6 +88,7 @@ class PanelController(private val context: Context) {
                     items = config.items,
                     panel = config.panel,
                     folder = config.folder,
+                    group = config.group,
                     registerDismiss = { dismissTrigger = it },
                     onDismissed = { hide() },
                 )

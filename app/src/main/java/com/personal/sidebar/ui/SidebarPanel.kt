@@ -82,6 +82,7 @@ import com.personal.sidebar.Settings
 import com.personal.sidebar.apps.AppInfo
 import com.personal.sidebar.apps.AppRepository
 import com.personal.sidebar.model.FolderConfig
+import com.personal.sidebar.model.GroupConfig
 import com.personal.sidebar.model.ItemType
 import com.personal.sidebar.model.PanelConfig
 import com.personal.sidebar.model.SidebarItem
@@ -144,6 +145,7 @@ fun SidebarPanel(
     items: List<SidebarItem>,
     panel: PanelConfig,
     folder: FolderConfig,
+    group: GroupConfig,
     registerDismiss: (() -> Unit) -> Unit,
     onDismissed: () -> Unit,
 ) {
@@ -219,6 +221,7 @@ fun SidebarPanel(
                 appMap = appMap,
                 panel = panel,
                 folder = folder,
+                group = group,
                 recents = recents,
                 onLaunch = onLaunch,
                 onOpenLink = onOpenLink,
@@ -235,6 +238,7 @@ private fun PanelCard(
     appMap: Map<String, AppInfo>?,
     panel: PanelConfig,
     folder: FolderConfig,
+    group: GroupConfig,
     recents: List<String>,
     onLaunch: (String) -> Unit,
     onOpenLink: (String) -> Unit,
@@ -297,16 +301,27 @@ private fun PanelCard(
                         folders = items.filter { it.type == ItemType.FOLDER },
                         appMap = appMap,
                         style = folder,
+                        groupStyle = group,
                         showLabels = panel.showLabels,
                         onLaunch = onLaunch,
                         onOpenLink = onOpenLink,
                     )
                 }
             }
-            // Bottom bar: settings gear + recent apps.
+            // Bottom bar: recent apps.
             if (appMap != null) {
-                BottomBar(recents = recents, appMap = appMap, onLaunch = onLaunch, onOpenSettings = onOpenSettings)
+                BottomBar(recents = recents, appMap = appMap, onLaunch = onLaunch)
             }
+        }
+        // Settings gear, tucked into the top-right corner of the panel.
+        IconButton(
+            onClick = onOpenSettings,
+            modifier = Modifier
+                .align(Alignment.TopEnd)
+                .padding(top = systemPadding.calculateTopPadding() + 4.dp, end = 4.dp)
+                .size(34.dp),
+        ) {
+            Icon(Icons.Filled.Settings, contentDescription = "Settings", tint = LabelSecondary, modifier = Modifier.size(20.dp))
         }
     }
 }
@@ -316,7 +331,6 @@ private fun BottomBar(
     recents: List<String>,
     appMap: Map<String, AppInfo>,
     onLaunch: (String) -> Unit,
-    onOpenSettings: () -> Unit,
 ) {
     Box(Modifier.fillMaxWidth().padding(top = 8.dp).height(1.dp).background(Color.White.copy(alpha = 0.15f)))
     // Recent apps across the full width.
@@ -335,10 +349,6 @@ private fun BottomBar(
         }
         repeat(4 - recentApps.size) { Box(Modifier.weight(1f)) }
     }
-    // Settings gear, tucked into the bottom-left corner (its own row).
-    IconButton(onClick = onOpenSettings, modifier = Modifier.size(32.dp)) {
-        Icon(Icons.Filled.Settings, contentDescription = "Settings", tint = LabelSecondary, modifier = Modifier.size(20.dp))
-    }
 }
 
 @OptIn(ExperimentalLayoutApi::class)
@@ -349,6 +359,7 @@ private fun PanelContent(
     folders: List<SidebarItem>,
     appMap: Map<String, AppInfo>,
     style: FolderConfig,
+    groupStyle: GroupConfig,
     showLabels: Boolean,
     onLaunch: (String) -> Unit,
     onOpenLink: (String) -> Unit,
@@ -412,26 +423,38 @@ private fun PanelContent(
 
         // Loose apps + links grid.
         if (loose.isNotEmpty()) {
-            if (folders.isNotEmpty()) Spacer(Modifier.height(48.dp))
+            if (folders.isNotEmpty()) Spacer(Modifier.height(72.dp))
             val dim by animateFloatAsState(if (dimActive) 0.35f else 1f, label = "appsDim")
             AppGrid(loose, COLUMNS, appMap, showLabels, Modifier.alpha(dim), onLaunch, onOpenLink)
         }
 
-        // Titled groups (inline sections in the main grid).
+        // Titled groups (inline sections, each in a subtly framed card).
         groups.forEach { g ->
             val dim by animateFloatAsState(if (dimActive) 0.35f else 1f, label = "groupDim")
-            Column(Modifier.alpha(dim)) {
-                Spacer(Modifier.height(12.dp))
-                if (!g.name.isNullOrBlank()) {
-                    Text(
-                        text = g.name,
-                        color = LabelPrimary,
-                        fontWeight = FontWeight.SemiBold,
-                        fontSize = 14.sp,
-                        modifier = Modifier.padding(start = 4.dp, bottom = 6.dp),
-                    )
+            Spacer(Modifier.height(12.dp))
+            val shape = RoundedCornerShape(groupStyle.cornerDp.dp)
+            Surface(
+                modifier = Modifier.fillMaxWidth().alpha(dim),
+                shape = shape,
+                color = Color.Transparent,
+                shadowElevation = groupStyle.shadowDp.dp,
+                tonalElevation = 0.dp,
+                border = if (groupStyle.borderDp > 0f) {
+                    BorderStroke(groupStyle.borderDp.dp, Color.White.copy(alpha = groupStyle.borderBrightness.coerceIn(0f, 1f)))
+                } else null,
+            ) {
+                Column(Modifier.padding(horizontal = 10.dp, vertical = 10.dp)) {
+                    if (!g.name.isNullOrBlank()) {
+                        Text(
+                            text = g.name,
+                            color = LabelPrimary,
+                            fontWeight = FontWeight.SemiBold,
+                            fontSize = 14.sp,
+                            modifier = Modifier.padding(start = 4.dp, bottom = 6.dp),
+                        )
+                    }
+                    AppGrid(g.packages.map { SidebarItem.app(it) }, COLUMNS, appMap, showLabels, Modifier, onLaunch)
                 }
-                AppGrid(g.packages.map { SidebarItem.app(it) }, COLUMNS, appMap, showLabels, Modifier, onLaunch)
             }
         }
     }
