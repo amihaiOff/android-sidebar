@@ -51,6 +51,10 @@ data class PanelConfig(
     val brightness: Float = 0.3f,
     /** Backdrop blur (frost) radius in dp; 0 = off. Needs Android 12+. */
     val blurDp: Int = 48,
+    /** Background scrim behind the panel: RGB color (alpha ignored here). */
+    val scrimColor: Int = 0xFF000000.toInt(),
+    /** Background scrim opacity: 0 = no dim (see through), 1 = solid. */
+    val scrimAlpha: Float = 0.25f,
 )
 
 /** The whole persisted sidebar configuration. */

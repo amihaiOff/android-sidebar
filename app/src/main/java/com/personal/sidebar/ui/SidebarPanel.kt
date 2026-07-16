@@ -61,6 +61,7 @@ import com.personal.sidebar.Edge
 import com.personal.sidebar.apps.AppInfo
 import com.personal.sidebar.apps.AppRepository
 import com.personal.sidebar.model.ItemType
+import com.personal.sidebar.model.PanelConfig
 import com.personal.sidebar.model.SidebarItem
 
 private val LabelPrimary = Color(0xFFF2F2F7)
@@ -84,15 +85,14 @@ private const val COLUMNS = 4
  * Full-screen overlay content: a translucent scrim plus a dark rounded panel
  * that springs in from [edge]. Renders the user's curated [items]: loose apps
  * as an icon grid and folders as expandable dropdown sections. All curation
- * happens in app settings — the panel is view-only. [panelOpacity] and
- * [panelBrightness] control the panel background tint.
+ * happens in app settings — the panel is view-only. [panel] carries the
+ * appearance settings (tint, opacity, background scrim).
  */
 @Composable
 fun SidebarPanel(
     edge: Edge,
     items: List<SidebarItem>,
-    panelOpacity: Float,
-    panelBrightness: Float,
+    panel: PanelConfig,
     registerDismiss: (() -> Unit) -> Unit,
     onDismissed: () -> Unit,
 ) {
@@ -115,7 +115,7 @@ fun SidebarPanel(
             Box(
                 Modifier
                     .fillMaxSize()
-                    .background(Color.Black.copy(alpha = 0.25f))
+                    .background(Color(panel.scrimColor).copy(alpha = panel.scrimAlpha.coerceIn(0f, 1f)))
                     .clickable(
                         interactionSource = remember { MutableInteractionSource() },
                         indication = null,
@@ -137,8 +137,8 @@ fun SidebarPanel(
                 edge = edge,
                 items = items,
                 appMap = appMap,
-                opacity = panelOpacity,
-                brightness = panelBrightness,
+                opacity = panel.opacity,
+                brightness = panel.brightness,
             ) { pkg ->
                 AppRepository.launch(context, pkg)
                 dismiss()

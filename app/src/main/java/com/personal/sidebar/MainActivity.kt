@@ -264,6 +264,21 @@ private fun HomeScreen(
                 SliderRow("Frost (blur)", config.panel.blurDp.toFloat(), 0f..80f, "${config.panel.blurDp} dp") {
                     onConfigChange(config.copy(panel = config.panel.copy(blurDp = it.toInt())))
                 }
+
+                Spacer(Modifier.height(12.dp))
+                Text("Background", style = MaterialTheme.typography.labelLarge)
+                Row(Modifier.padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    SWATCHES.forEach { rgb ->
+                        ColorSwatch(
+                            rgb = rgb,
+                            selected = (config.panel.scrimColor and 0x00FFFFFF) == (rgb and 0x00FFFFFF),
+                            onClick = { onConfigChange(config.copy(panel = config.panel.copy(scrimColor = withRgb(config.panel.scrimColor, rgb)))) },
+                        )
+                    }
+                }
+                SliderRow("Background dim", config.panel.scrimAlpha, 0f..0.85f, "${(config.panel.scrimAlpha * 100).toInt()}%") {
+                    onConfigChange(config.copy(panel = config.panel.copy(scrimAlpha = it)))
+                }
             }
         }
 
