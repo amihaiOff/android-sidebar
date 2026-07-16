@@ -41,9 +41,17 @@ data class HandleConfig(
     }
 }
 
+/** Appearance of the slide-out panel itself. */
+@Serializable
+data class PanelConfig(
+    /** Background opacity of the panel: 0.35 = very see-through, 1 = solid. */
+    val opacity: Float = 0.85f,
+)
+
 /** The whole persisted sidebar configuration. */
 @Serializable
 data class SidebarConfig(
     val handle: HandleConfig = HandleConfig(),
+    val panel: PanelConfig = PanelConfig(),
     val items: List<SidebarItem> = emptyList(),
 )

@@ -36,6 +36,7 @@ class PanelController(private val context: Context) {
                 SidebarPanel(
                     edge = config.handle.edge,
                     items = config.items,
+                    panelOpacity = config.panel.opacity,
                     registerDismiss = { dismissTrigger = it },
                     onDismissed = { hide() },
                 )

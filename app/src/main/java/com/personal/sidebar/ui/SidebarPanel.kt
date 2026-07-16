@@ -1,7 +1,6 @@
 package com.personal.sidebar.ui
 
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.Crossfade
 import androidx.compose.animation.core.MutableTransitionState
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.spring
@@ -27,20 +26,18 @@ import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.Folder
+import androidx.compose.material.icons.filled.ExpandLess
+import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -52,74 +49,80 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.core.graphics.drawable.toBitmap
 import com.personal.sidebar.Edge
 import com.personal.sidebar.apps.AppInfo
 import com.personal.sidebar.apps.AppRepository
 import com.personal.sidebar.model.ItemType
 import com.personal.sidebar.model.SidebarItem
-import com.personal.sidebar.ui.theme.SidebarTheme
+
+// Fixed dark palette to match the iOS-style translucent launcher look.
+private val PanelBase = Color(0xFF1C1C1E)
+private val SectionBg = Color.White.copy(alpha = 0.08f)
+private val LabelPrimary = Color(0xFFF2F2F7)
+private val LabelSecondary = Color(0xFFB9B9C0)
+private const val COLUMNS = 4
 
 /**
- * Full-screen overlay content: a translucent scrim plus a rounded card that
- * springs in from [edge]. It renders the user's curated [items] (apps and
- * folders); tapping a folder drills in, tapping an app launches it. Tapping the
- * scrim, pressing back, or launching an app dismisses it; [onDismissed] fires
- * only after the exit animation finishes so the host can safely remove the
- * window. [registerDismiss] hands the host a dismissal trigger for the back key.
+ * Full-screen overlay content: a translucent scrim plus a dark rounded panel
+ * that springs in from [edge]. Renders the user's curated [items]: loose apps
+ * as an icon grid and folders as expandable dropdown sections. All curation
+ * happens in app settings — the panel is view-only. [panelOpacity] controls how
+ * see-through the panel background is.
  */
 @Composable
 fun SidebarPanel(
     edge: Edge,
     items: List<SidebarItem>,
+    panelOpacity: Float,
     registerDismiss: (() -> Unit) -> Unit,
     onDismissed: () -> Unit,
 ) {
-    SidebarTheme {
-        val context = LocalContext.current
-        val transition = remember { MutableTransitionState(false).apply { targetState = true } }
-        val dismiss = remember { { transition.targetState = false } }
+    val context = LocalContext.current
+    val transition = remember { MutableTransitionState(false).apply { targetState = true } }
+    val dismiss = remember { { transition.targetState = false } }
 
-        LaunchedEffect(Unit) { registerDismiss(dismiss) }
-        LaunchedEffect(transition.currentState, transition.isIdle) {
-            if (transition.isIdle && !transition.currentState) onDismissed()
+    LaunchedEffect(Unit) { registerDismiss(dismiss) }
+    LaunchedEffect(transition.currentState, transition.isIdle) {
+        if (transition.isIdle && !transition.currentState) onDismissed()
+    }
+
+    var appMap by remember { mutableStateOf<Map<String, AppInfo>?>(null) }
+    LaunchedEffect(Unit) { appMap = AppRepository.map(context) }
+
+    val alignment = if (edge == Edge.LEFT) Alignment.CenterStart else Alignment.CenterEnd
+
+    Box(Modifier.fillMaxSize()) {
+        AnimatedVisibility(transition, enter = fadeIn(), exit = fadeOut()) {
+            Box(
+                Modifier
+                    .fillMaxSize()
+                    .background(Color.Black.copy(alpha = 0.45f))
+                    .clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null,
+                    ) { dismiss() }
+            )
         }
 
-        var appMap by remember { mutableStateOf<Map<String, AppInfo>?>(null) }
-        LaunchedEffect(Unit) { appMap = AppRepository.map(context) }
-
-        val alignment = if (edge == Edge.LEFT) Alignment.CenterStart else Alignment.CenterEnd
-
-        Box(Modifier.fillMaxSize()) {
-            AnimatedVisibility(transition, enter = fadeIn(), exit = fadeOut()) {
-                Box(
-                    Modifier
-                        .fillMaxSize()
-                        .background(Color.Black.copy(alpha = 0.45f))
-                        .clickable(
-                            interactionSource = remember { MutableInteractionSource() },
-                            indication = null,
-                        ) { dismiss() }
-                )
-            }
-
-            AnimatedVisibility(
-                visibleState = transition,
-                modifier = Modifier.align(alignment),
-                enter = slideInHorizontally(
-                    animationSpec = spring(dampingRatio = Spring.DampingRatioLowBouncy, stiffness = Spring.StiffnessMediumLow)
-                ) { full -> if (edge == Edge.LEFT) -full else full } + fadeIn(),
-                exit = slideOutHorizontally(
-                    animationSpec = spring(stiffness = Spring.StiffnessMedium)
-                ) { full -> if (edge == Edge.LEFT) -full else full } + fadeOut(),
-            ) {
-                PanelCard(edge = edge, items = items, appMap = appMap) { pkg ->
-                    AppRepository.launch(context, pkg)
-                    dismiss()
-                }
+        AnimatedVisibility(
+            visibleState = transition,
+            modifier = Modifier.align(alignment),
+            enter = slideInHorizontally(
+                animationSpec = spring(dampingRatio = Spring.DampingRatioLowBouncy, stiffness = Spring.StiffnessMediumLow)
+            ) { full -> if (edge == Edge.LEFT) -full else full } + fadeIn(),
+            exit = slideOutHorizontally(
+                animationSpec = spring(stiffness = Spring.StiffnessMedium)
+            ) { full -> if (edge == Edge.LEFT) -full else full } + fadeOut(),
+        ) {
+            PanelCard(edge = edge, items = items, appMap = appMap, opacity = panelOpacity) { pkg ->
+                AppRepository.launch(context, pkg)
+                dismiss()
             }
         }
     }
@@ -130,6 +133,7 @@ private fun PanelCard(
     edge: Edge,
     items: List<SidebarItem>,
     appMap: Map<String, AppInfo>?,
+    opacity: Float,
     onLaunch: (String) -> Unit,
 ) {
     val shape = if (edge == Edge.LEFT) {
@@ -138,55 +142,68 @@ private fun PanelCard(
         RoundedCornerShape(topStart = 28.dp, bottomStart = 28.dp)
     }
     val systemPadding = WindowInsets.safeDrawing.asPaddingValues()
-    var openFolder by remember { mutableStateOf<SidebarItem?>(null) }
+    // Which folders are expanded (defaults to expanded); ephemeral per open.
+    val expanded = remember { mutableStateMapOf<String, Boolean>() }
 
-    Surface(
-        modifier = Modifier.width(340.dp).fillMaxHeight(),
-        shape = shape,
-        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.97f),
-        tonalElevation = 3.dp,
-        shadowElevation = 12.dp,
+    Box(
+        modifier = Modifier
+            .width(360.dp)
+            .fillMaxHeight()
+            .clip(shape)
+            .background(PanelBase.copy(alpha = opacity.coerceIn(0.35f, 1f))),
     ) {
         Column(
             Modifier
                 .fillMaxSize()
                 .padding(
-                    top = systemPadding.calculateTopPadding() + 20.dp,
+                    top = systemPadding.calculateTopPadding() + 16.dp,
                     bottom = systemPadding.calculateBottomPadding() + 12.dp,
-                    start = 16.dp,
-                    end = 16.dp,
+                    start = 14.dp,
+                    end = 14.dp,
                 )
         ) {
             when {
                 appMap == null -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    CircularProgressIndicator()
+                    CircularProgressIndicator(color = LabelPrimary)
                 }
                 items.isEmpty() -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     Text(
                         "No apps yet.\nAdd some in Sidebar settings.",
                         textAlign = TextAlign.Center,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        color = LabelSecondary,
                     )
                 }
-                else -> Crossfade(targetState = openFolder, label = "folder") { folder ->
-                    if (folder == null) {
-                        AppGrid(
-                            header = "Apps",
-                            entries = items,
-                            appMap = appMap,
-                            onApp = onLaunch,
-                            onFolder = { openFolder = it },
-                        )
-                    } else {
-                        val members = folder.packages.map { SidebarItem.app(it) }
-                        AppGrid(
-                            header = folder.name ?: "Folder",
-                            entries = members,
-                            appMap = appMap,
-                            onApp = onLaunch,
-                            onFolder = {},
-                            onBack = { openFolder = null },
-                        )
+                else -> LazyVerticalGrid(
+                    columns = GridCells.Fixed(COLUMNS),
+                    verticalArrangement = Arrangement.spacedBy(6.dp),
+                    horizontalArrangement = Arrangement.spacedBy(2.dp),
+                    modifier = Modifier.fillMaxSize(),
+                ) {
+                    items.forEachIndexed { index, entry ->
+                        if (entry.type == ItemType.FOLDER) {
+                            val fkey = entry.key()
+                            item(span = { GridItemSpan(maxLineSpan) }, key = "f$index") {
+                                FolderSection(
+                                    folder = entry,
+                                    appMap = appMap,
+                                    isExpanded = expanded[fkey] ?: true,
+                                    onToggle = { expanded[fkey] = !(expanded[fkey] ?: true) },
+                                    onLaunch = onLaunch,
+                                )
+                            }
+                        } else {
+                            item(key = "a$index") {
+                                val app = entry.packageName?.let { appMap[it] }
+                                if (app != null) {
+                                    AppTile(
+                                        label = app.label,
+                                        bitmap = remember(app.packageName) { app.icon.toBitmap(144, 144).asImageBitmap() },
+                                    ) { onLaunch(app.packageName) }
+                                } else {
+                                    Box(Modifier.size(1.dp))
+                                }
+                            }
+                        }
                     }
                 }
             }
@@ -195,41 +212,60 @@ private fun PanelCard(
 }
 
 @Composable
-private fun AppGrid(
-    header: String,
-    entries: List<SidebarItem>,
+private fun FolderSection(
+    folder: SidebarItem,
     appMap: Map<String, AppInfo>,
-    onApp: (String) -> Unit,
-    onFolder: (SidebarItem) -> Unit,
-    onBack: (() -> Unit)? = null,
+    isExpanded: Boolean,
+    onToggle: () -> Unit,
+    onLaunch: (String) -> Unit,
 ) {
-    Column(Modifier.fillMaxSize()) {
-        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(bottom = 12.dp)) {
-            if (onBack != null) {
-                IconButton(onClick = onBack) {
-                    Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
-                }
-            }
+    Column(Modifier.fillMaxWidth().padding(vertical = 2.dp)) {
+        // Header row — the "Productivity"-style dropdown title.
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(10.dp))
+                .clickable(onClick = onToggle)
+                .padding(horizontal = 6.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
             Text(
-                text = header,
-                style = MaterialTheme.typography.headlineSmall,
-                color = MaterialTheme.colorScheme.onSurface,
-                modifier = Modifier.padding(start = if (onBack != null) 0.dp else 4.dp),
+                text = folder.name ?: "Folder",
+                color = LabelPrimary,
+                fontWeight = FontWeight.SemiBold,
+                fontSize = 17.sp,
+                modifier = Modifier.weight(1f),
+            )
+            Icon(
+                imageVector = if (isExpanded) Icons.Filled.ExpandLess else Icons.Filled.ExpandMore,
+                contentDescription = if (isExpanded) "Collapse" else "Expand",
+                tint = LabelSecondary,
             )
         }
-        LazyVerticalGrid(
-            columns = GridCells.Fixed(3),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
-            horizontalArrangement = Arrangement.spacedBy(4.dp),
-            modifier = Modifier.fillMaxSize(),
-        ) {
-            items(entries, key = { it.key() }) { entry ->
-                if (entry.type == ItemType.FOLDER) {
-                    FolderTile(entry, appMap) { onFolder(entry) }
-                } else {
-                    val app = entry.packageName?.let { appMap[it] }
-                    if (app != null) AppTile(app.label, remember(app.packageName) { app.icon.toBitmap(144, 144).asImageBitmap() }) {
-                        onApp(app.packageName)
+
+        AnimatedVisibility(visible = isExpanded) {
+            Box(
+                Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(16.dp))
+                    .background(SectionBg)
+                    .padding(vertical = 8.dp, horizontal = 4.dp),
+            ) {
+                // Manual (non-lazy) grid so it can nest inside the outer grid.
+                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    val members = folder.packages.mapNotNull { appMap[it] }
+                    members.chunked(COLUMNS).forEach { rowApps ->
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+                            rowApps.forEach { app ->
+                                Box(Modifier.weight(1f)) {
+                                    AppTile(
+                                        label = app.label,
+                                        bitmap = remember(app.packageName) { app.icon.toBitmap(144, 144).asImageBitmap() },
+                                    ) { onLaunch(app.packageName) }
+                                }
+                            }
+                            repeat(COLUMNS - rowApps.size) { Box(Modifier.weight(1f)) }
+                        }
                     }
                 }
             }
@@ -242,86 +278,29 @@ private fun AppTile(label: String, bitmap: ImageBitmap, onClick: () -> Unit) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(16.dp))
+            .clip(RoundedCornerShape(14.dp))
             .clickable(onClick = onClick)
-            .padding(vertical = 10.dp, horizontal = 4.dp),
+            .padding(vertical = 8.dp, horizontal = 2.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Image(bitmap = bitmap, contentDescription = label, modifier = Modifier.size(52.dp))
+        Image(
+            bitmap = bitmap,
+            contentDescription = label,
+            modifier = Modifier.size(50.dp).clip(RoundedCornerShape(12.dp)),
+        )
         Text(
             text = label,
-            style = MaterialTheme.typography.labelMedium,
-            color = MaterialTheme.colorScheme.onSurface,
+            color = LabelPrimary,
+            fontSize = 11.sp,
             textAlign = TextAlign.Center,
-            maxLines = 2,
+            maxLines = 1,
             overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.padding(top = 6.dp),
+            modifier = Modifier.padding(top = 5.dp),
         )
     }
 }
 
-@Composable
-private fun FolderTile(folder: SidebarItem, appMap: Map<String, AppInfo>, onClick: () -> Unit) {
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(16.dp))
-            .clickable(onClick = onClick)
-            .padding(vertical = 10.dp, horizontal = 4.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-    ) {
-        val previews = folder.packages.mapNotNull { appMap[it] }.take(4)
-        Surface(
-            modifier = Modifier.size(52.dp),
-            shape = RoundedCornerShape(14.dp),
-            color = MaterialTheme.colorScheme.surfaceVariant,
-        ) {
-            if (previews.isEmpty()) {
-                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    Icon(
-                        Icons.Filled.Folder,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.size(28.dp),
-                    )
-                }
-            } else {
-                // 2x2 mini grid of member icons.
-                Column(
-                    Modifier.fillMaxSize().padding(6.dp),
-                    verticalArrangement = Arrangement.spacedBy(3.dp),
-                ) {
-                    previews.chunked(2).forEach { row ->
-                        Row(
-                            Modifier.weight(1f).fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(3.dp),
-                        ) {
-                            row.forEach { app ->
-                                Image(
-                                    bitmap = remember(app.packageName) { app.icon.toBitmap(72, 72).asImageBitmap() },
-                                    contentDescription = null,
-                                    modifier = Modifier.weight(1f).fillMaxHeight(),
-                                )
-                            }
-                            if (row.size == 1) Box(Modifier.weight(1f))
-                        }
-                    }
-                }
-            }
-        }
-        Text(
-            text = folder.name ?: "Folder",
-            style = MaterialTheme.typography.labelMedium,
-            color = MaterialTheme.colorScheme.onSurface,
-            textAlign = TextAlign.Center,
-            maxLines = 2,
-            overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.padding(top = 6.dp),
-        )
-    }
-}
-
-/** Stable list key for a curated entry. */
+/** Stable identity for a folder's expand/collapse state. */
 private fun SidebarItem.key(): String = when (type) {
     ItemType.APP -> "app:${packageName}"
     ItemType.FOLDER -> "folder:${name}:${packages.joinToString(",")}"

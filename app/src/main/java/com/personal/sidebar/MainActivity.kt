@@ -243,6 +243,9 @@ private fun HomeScreen(
                 SliderRow("Position", handle.verticalBias, 0f..1f, positionLabel(handle.verticalBias)) {
                     setHandle(handle.copy(verticalBias = it))
                 }
+                SliderRow("Panel opacity", config.panel.opacity, 0.35f..1f, "${(config.panel.opacity * 100).toInt()}%") {
+                    onConfigChange(config.copy(panel = config.panel.copy(opacity = it)))
+                }
             }
         }
 
