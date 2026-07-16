@@ -42,8 +42,12 @@ running handle re-arms on each change):
 - **Reorder** — long-press the drag handle on any item in the settings list to
   drag it up or down; the new order is what the panel shows.
 - **Panel look** — sliders for opacity (see-through), brightness (tint from
-  near-black to light grey), and frost/blur strength (real backdrop blur on
-  Android 12+ where the device supports cross-window blur).
+  near-black to white), frost/blur strength (real backdrop blur on Android 12+
+  where the device supports cross-window blur), and background scrim colour/dim.
+  A thin white glass edge is drawn around the panel.
+- **Glassmorphism lab** — a developer screen (Appearance → Glassmorphism lab)
+  with a live `RenderEffect` blur preview over a colourful background and
+  sliders for blur radius, tint alpha, and edge stroke, plus a code snippet.
 
 Config is stored as JSON in SharedPreferences (`kotlinx.serialization`).
 

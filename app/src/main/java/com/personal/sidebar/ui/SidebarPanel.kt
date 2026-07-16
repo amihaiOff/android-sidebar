@@ -11,6 +11,7 @@ import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -66,9 +67,9 @@ import com.personal.sidebar.model.SidebarItem
 private val LabelPrimary = Color(0xFFF2F2F7)
 private val LabelSecondary = Color(0xFFC7C7CF)
 
-/** Panel tint grey derived from the brightness setting (0 = dark, 1 = light). */
+/** Panel tint grey derived from the brightness setting (0 = near-black, 1 = white). */
 private fun panelColor(brightness: Float): Color {
-    val c = (16 + brightness.coerceIn(0f, 1f) * 176).toInt().coerceIn(0, 255)
+    val c = (16 + brightness.coerceIn(0f, 1f) * 239).toInt().coerceIn(0, 255)
     return Color(c, c, c)
 }
 private const val COLUMNS = 4
@@ -159,8 +160,10 @@ private fun PanelCard(
         Box(
             Modifier
                 .matchParentSize()
-                .background(panelColor(panel.brightness).copy(alpha = panel.opacity.coerceIn(0.35f, 1f)))
+                .background(panelColor(panel.brightness).copy(alpha = panel.opacity.coerceIn(0.12f, 1f)))
         )
+        // Glass edge — thin white stroke catching the light.
+        Box(Modifier.matchParentSize().border(1.dp, Color.White.copy(alpha = 0.22f), shape))
         Column(
             Modifier
                 .fillMaxSize()

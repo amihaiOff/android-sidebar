@@ -79,6 +79,7 @@ import com.personal.sidebar.util.Permissions
 private sealed interface Screen {
     data object Home : Screen
     data object AddApps : Screen
+    data object GlassLab : Screen
     data class FolderEdit(val index: Int?) : Screen
 }
 
@@ -117,6 +118,7 @@ private fun SidebarRoot() {
                 },
                 onAddApps = { screen = Screen.AddApps },
                 onNewFolder = { screen = Screen.FolderEdit(null) },
+                onOpenGlassLab = { screen = Screen.GlassLab },
                 onEditFolder = { index -> screen = Screen.FolderEdit(index) },
                 onRemoveItem = { index ->
                     commit(config.copy(items = config.items.filterIndexed { i, _ -> i != index }))
@@ -129,6 +131,11 @@ private fun SidebarRoot() {
                 config = config,
                 onDone = { newItems -> commit(config.copy(items = newItems)); screen = Screen.Home },
                 onCancel = { screen = Screen.Home },
+            )
+
+            Screen.GlassLab -> GlassLabScreen(
+                modifier = mod,
+                onBack = { screen = Screen.Home },
             )
 
             is Screen.FolderEdit -> {
@@ -163,6 +170,7 @@ private fun HomeScreen(
     onRunningChange: (Boolean) -> Unit,
     onAddApps: () -> Unit,
     onNewFolder: () -> Unit,
+    onOpenGlassLab: () -> Unit,
     onEditFolder: (Int) -> Unit,
     onRemoveItem: (Int) -> Unit,
     onReorder: (List<SidebarItem>) -> Unit,
@@ -255,7 +263,7 @@ private fun HomeScreen(
                 SliderRow("Position", handle.verticalBias, 0f..1f, positionLabel(handle.verticalBias)) {
                     setHandle(handle.copy(verticalBias = it))
                 }
-                SliderRow("Panel opacity", config.panel.opacity, 0.35f..1f, "${(config.panel.opacity * 100).toInt()}%") {
+                SliderRow("Panel opacity", config.panel.opacity, 0.1f..1f, "${(config.panel.opacity * 100).toInt()}%") {
                     onConfigChange(config.copy(panel = config.panel.copy(opacity = it)))
                 }
                 SliderRow("Panel brightness", config.panel.brightness, 0f..1f, "${(config.panel.brightness * 100).toInt()}%") {
@@ -279,6 +287,9 @@ private fun HomeScreen(
                 SliderRow("Background dim", config.panel.scrimAlpha, 0f..0.85f, "${(config.panel.scrimAlpha * 100).toInt()}%") {
                     onConfigChange(config.copy(panel = config.panel.copy(scrimAlpha = it)))
                 }
+
+                Spacer(Modifier.height(12.dp))
+                OutlinedButton(onClick = onOpenGlassLab) { Text("Glassmorphism lab") }
             }
         }
 
