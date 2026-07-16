@@ -41,10 +41,8 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Language
-import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -448,22 +446,10 @@ private fun PanelCard(
                     )
                 }
             }
-            // Bottom bar: recent apps.
+            // Bottom bar: a Settings link, then recent apps.
             if (appMap != null) {
-                BottomBar(recents = recents, appMap = appMap, onLaunch = onLaunch)
+                BottomBar(recents = recents, appMap = appMap, onLaunch = onLaunch, onOpenSettings = onOpenSettings)
             }
-        }
-        // Settings gear, top-right — placed just below the status-bar inset.
-        // (Touches inside the status-bar strip are eaten by the system, so the
-        // button can't go any higher and still respond.)
-        IconButton(
-            onClick = onOpenSettings,
-            modifier = Modifier
-                .align(Alignment.TopEnd)
-                .padding(top = systemPadding.calculateTopPadding() + 2.dp, end = 6.dp)
-                .size(44.dp),
-        ) {
-            Icon(Icons.Filled.Settings, contentDescription = "Settings", tint = LabelSecondary, modifier = Modifier.size(26.dp))
         }
     }
     }
@@ -474,7 +460,19 @@ private fun BottomBar(
     recents: List<String>,
     appMap: Map<String, AppInfo>,
     onLaunch: (String) -> Unit,
+    onOpenSettings: () -> Unit,
 ) {
+    Text(
+        "Settings",
+        color = LabelSecondary.copy(alpha = 0.55f),
+        fontSize = 12.sp,
+        textAlign = TextAlign.Center,
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(8.dp))
+            .clickable(onClick = onOpenSettings)
+            .padding(vertical = 6.dp),
+    )
     Box(Modifier.fillMaxWidth().padding(top = 8.dp).height(1.dp).background(Color.White.copy(alpha = 0.15f)))
     // Recent apps across the full width.
     Row(
