@@ -34,6 +34,7 @@ import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -63,7 +64,8 @@ import com.personal.sidebar.model.SidebarItem
 
 // Fixed dark palette to match the iOS-style translucent launcher look.
 private val PanelBase = Color(0xFF1C1C1E)
-private val SectionBg = Color.White.copy(alpha = 0.08f)
+// Folder cards float above the panel in a lighter grey with a drop shadow.
+private val FolderCardBg = Color(0xFF3A3A3C)
 private val LabelPrimary = Color(0xFFF2F2F7)
 private val LabelSecondary = Color(0xFFB9B9C0)
 private const val COLUMNS = 4
@@ -102,7 +104,7 @@ fun SidebarPanel(
             Box(
                 Modifier
                     .fillMaxSize()
-                    .background(Color.Black.copy(alpha = 0.45f))
+                    .background(Color.Black.copy(alpha = 0.35f))
                     .clickable(
                         interactionSource = remember { MutableInteractionSource() },
                         indication = null,
@@ -219,40 +221,44 @@ private fun FolderSection(
     onToggle: () -> Unit,
     onLaunch: (String) -> Unit,
 ) {
-    Column(Modifier.fillMaxWidth().padding(vertical = 2.dp)) {
-        // Header row — the "Productivity"-style dropdown title.
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clip(RoundedCornerShape(10.dp))
-                .clickable(onClick = onToggle)
-                .padding(horizontal = 6.dp, vertical = 8.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Text(
-                text = folder.name ?: "Folder",
-                color = LabelPrimary,
-                fontWeight = FontWeight.SemiBold,
-                fontSize = 17.sp,
-                modifier = Modifier.weight(1f),
-            )
-            Icon(
-                imageVector = if (isExpanded) Icons.Filled.ExpandLess else Icons.Filled.ExpandMore,
-                contentDescription = if (isExpanded) "Collapse" else "Expand",
-                tint = LabelSecondary,
-            )
-        }
-
-        AnimatedVisibility(visible = isExpanded) {
-            Box(
-                Modifier
+    // The whole folder is one floating card (drop shadow), with the dropdown
+    // title INSIDE it at the top and the member apps below — like the image.
+    Surface(
+        modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp),
+        shape = RoundedCornerShape(20.dp),
+        color = FolderCardBg,
+        shadowElevation = 10.dp,
+        tonalElevation = 0.dp,
+    ) {
+        Column(Modifier.padding(horizontal = 10.dp, vertical = 6.dp)) {
+            Row(
+                modifier = Modifier
                     .fillMaxWidth()
-                    .clip(RoundedCornerShape(16.dp))
-                    .background(SectionBg)
-                    .padding(vertical = 8.dp, horizontal = 4.dp),
+                    .clip(RoundedCornerShape(10.dp))
+                    .clickable(onClick = onToggle)
+                    .padding(horizontal = 6.dp, vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically,
             ) {
+                Text(
+                    text = folder.name ?: "Folder",
+                    color = LabelPrimary,
+                    fontWeight = FontWeight.SemiBold,
+                    fontSize = 17.sp,
+                    modifier = Modifier.weight(1f),
+                )
+                Icon(
+                    imageVector = if (isExpanded) Icons.Filled.ExpandLess else Icons.Filled.ExpandMore,
+                    contentDescription = if (isExpanded) "Collapse" else "Expand",
+                    tint = LabelSecondary,
+                )
+            }
+
+            AnimatedVisibility(visible = isExpanded) {
                 // Manual (non-lazy) grid so it can nest inside the outer grid.
-                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Column(
+                    modifier = Modifier.padding(top = 2.dp, bottom = 4.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp),
+                ) {
                     val members = folder.packages.mapNotNull { appMap[it] }
                     members.chunked(COLUMNS).forEach { rowApps ->
                         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(2.dp)) {

@@ -87,6 +87,14 @@ class PanelController(private val context: Context) {
             params.layoutInDisplayCutoutMode =
                 WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES
         }
+        // Real backdrop blur (frosted glass) on Android 12+, when the device
+        // supports cross-window blur. Degrades gracefully to a plain translucent
+        // panel where it isn't available.
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && windowManager.isCrossWindowBlurEnabled) {
+            val density = context.resources.displayMetrics.density
+            params.flags = params.flags or WindowManager.LayoutParams.FLAG_BLUR_BEHIND
+            params.blurBehindRadius = (30 * density).toInt()
+        }
         return params
     }
 }
