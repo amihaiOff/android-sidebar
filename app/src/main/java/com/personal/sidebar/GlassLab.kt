@@ -120,7 +120,7 @@ internal fun GlassLabScreen(
         LabSlider("Edge stroke", p.edgeDp, 0f..4f, "${p.edgeDp.roundToInt()} dp") { setP(p.copy(edgeDp = it)) }
         LabSlider("Corner radius", p.cornerDp.toFloat(), 0f..48f, "${p.cornerDp} dp") { setP(p.copy(cornerDp = it.roundToInt())) }
         ToggleRow("Show app names", p.showLabels) { setP(p.copy(showLabels = it)) }
-        ToggleRow("Themed icons (Android 13+)", p.themedIcons) { setP(p.copy(themedIcons = it)) }
+        ToggleRow("Themed icons (recolour all)", p.themedIcons) { setP(p.copy(themedIcons = it)) }
         Text("Background", style = MaterialTheme.typography.labelLarge, modifier = Modifier.padding(top = 8.dp))
         Row(Modifier.padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             LAB_SWATCHES.forEach { rgb ->
@@ -258,7 +258,7 @@ private fun PreviewFolderCircle(f: FolderConfig, emoji: String, selected: Boolea
         .coerceIn(0f, 16f).dp
     Surface(
         modifier = Modifier.size(52.dp),
-        shape = CircleShape,
+        shape = RoundedCornerShape(15.dp),
         color = tint,
         shadowElevation = elevation,
         border = if (f.edgeDp > 0f) BorderStroke(f.edgeDp.dp, Color.White.copy(alpha = if (selected) 0.75f else 0.4f)) else null,

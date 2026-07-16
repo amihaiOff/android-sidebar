@@ -193,29 +193,60 @@ internal data class IconStyle(val themed: Boolean, val fg: Int, val bg: Int)
 internal val LocalIconStyle = androidx.compose.runtime.staticCompositionLocalOf { IconStyle(false, 0, 0) }
 
 /**
- * Renders an adaptive icon's monochrome layer tinted to the system theme (a
- * themed icon), like Android 13+ launchers do. Returns null if the icon has no
- * monochrome layer (or the OS is too old) so callers fall back to the full icon.
+ * Renders an app icon tinted to the system theme (a themed icon). Uses the
+ * adaptive icon's real monochrome layer when the app ships one (Android 13+);
+ * otherwise *generates* a monochrome from the icon's own artwork (luminance
+ * silhouette) so every icon recolours uniformly, not just the ones with a
+ * monochrome layer. Returns null only when the OS is too old for the palette.
  */
 internal fun themedIconBitmap(src: android.graphics.drawable.Drawable, sizePx: Int, fg: Int, bg: Int): android.graphics.Bitmap? {
-    if (android.os.Build.VERSION.SDK_INT < 33) return null
-    val adaptive = src as? android.graphics.drawable.AdaptiveIconDrawable ?: return null
-    val mono = adaptive.monochrome ?: return null
+    if (android.os.Build.VERSION.SDK_INT < 31) return null
     val bmp = android.graphics.Bitmap.createBitmap(sizePx, sizePx, android.graphics.Bitmap.Config.ARGB_8888)
     val canvas = android.graphics.Canvas(bmp)
     val radius = sizePx * 0.22f
-    val bgPaint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply { color = bg }
     val rect = android.graphics.RectF(0f, 0f, sizePx.toFloat(), sizePx.toFloat())
-    canvas.drawRoundRect(rect, radius, radius, bgPaint)
+    canvas.drawRoundRect(rect, radius, radius, android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply { color = bg })
     val clip = android.graphics.Path().apply { addRoundRect(rect, radius, radius, android.graphics.Path.Direction.CW) }
     canvas.clipPath(clip)
-    // Adaptive-icon layers are 1.5x the visible mask; scale the monochrome up so
-    // its safe-zone glyph fills the tile, matching how the system renders it.
-    val bleed = (sizePx * 0.25f).toInt()
-    mono.mutate()
-    mono.setTint(fg)
-    mono.setBounds(-bleed, -bleed, sizePx + bleed, sizePx + bleed)
-    mono.draw(canvas)
+
+    val adaptive = src as? android.graphics.drawable.AdaptiveIconDrawable
+    val realMono = if (android.os.Build.VERSION.SDK_INT >= 33) adaptive?.monochrome else null
+    val bleed = (sizePx * 0.25f).toInt() // adaptive layers are 1.5x the visible mask
+    if (realMono != null) {
+        realMono.mutate()
+        realMono.setTint(fg)
+        realMono.setBounds(-bleed, -bleed, sizePx + bleed, sizePx + bleed)
+        realMono.draw(canvas)
+    } else {
+        // Generate a monochrome from the icon's foreground (or the whole icon).
+        val layer = adaptive?.foreground ?: src
+        val tmp = android.graphics.Bitmap.createBitmap(sizePx, sizePx, android.graphics.Bitmap.Config.ARGB_8888)
+        val tc = android.graphics.Canvas(tmp)
+        val b = if (adaptive != null) bleed else 0
+        layer.setBounds(-b, -b, sizePx + b, sizePx + b)
+        layer.draw(tc)
+        val n = sizePx * sizePx
+        val px = IntArray(n)
+        tmp.getPixels(px, 0, sizePx, 0, 0, sizePx, sizePx)
+        val fr = (fg ushr 16) and 0xFF
+        val fgn = (fg ushr 8) and 0xFF
+        val fb = fg and 0xFF
+        for (i in 0 until n) {
+            val p = px[i]
+            val a = (p ushr 24) and 0xFF
+            if (a == 0) { px[i] = 0; continue }
+            val r = (p ushr 16) and 0xFF
+            val g = (p ushr 8) and 0xFF
+            val bl = p and 0xFF
+            val lum = (0.299 * r + 0.587 * g + 0.114 * bl) / 255.0
+            // Keep the icon's shape (alpha) while letting brighter areas read
+            // stronger, so detail survives instead of a flat blob.
+            val outA = (a * (0.25 + 0.75 * lum)).toInt().coerceIn(0, 255)
+            px[i] = (outA shl 24) or (fr shl 16) or (fgn shl 8) or fb
+        }
+        tmp.setPixels(px, 0, sizePx, 0, 0, sizePx, sizePx)
+        canvas.drawBitmap(tmp, 0f, 0f, null)
+    }
     return bmp
 }
 
@@ -563,10 +594,18 @@ private fun PanelContent(
                                 color = LabelPrimary,
                                 fontWeight = FontWeight.SemiBold,
                                 fontSize = 14.sp,
-                                modifier = Modifier.padding(start = 4.dp, bottom = 6.dp),
+                                modifier = Modifier.padding(start = 2.dp, bottom = 6.dp),
                             )
                         }
-                        AppGrid(g.packages.map { SidebarItem.app(it) }, COLUMNS, appMap, showLabels, Modifier, onLaunch)
+                        AppGrid(
+                            items = g.packages.map { SidebarItem.app(it) },
+                            cols = COLUMNS,
+                            appMap = appMap,
+                            showLabels = showLabels,
+                            modifier = Modifier,
+                            onLaunch = onLaunch,
+                            tileAlign = Alignment.Start,
+                        )
                     }
                     // Sunken look: an inner shadow hugging the group's edge.
                     if (groupStyle.insetDp > 0f) {
@@ -578,7 +617,7 @@ private fun PanelContent(
     }
 }
 
-/** A folder as a glass circle showing its emoji, with a label beneath. */
+/** A folder as a rounded-square glass tile showing its emoji, label beneath. */
 @Composable
 private fun FolderCircle(
     folder: SidebarItem,
@@ -588,13 +627,12 @@ private fun FolderCircle(
     onClick: () -> Unit,
 ) {
     val tint = panelColor(style.brightness).copy(alpha = style.opacity.coerceIn(0f, 1f))
-    // Circular drop shadow (elevation) — round, not the rounded-rect side shadow.
     val elevation = (maxOf(style.shadowTopDp, style.shadowBottomDp, style.shadowLeftDp, style.shadowRightDp) * 0.6f)
         .coerceIn(0f, 16f).dp
     Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = modifier) {
         Surface(
             modifier = Modifier.size(58.dp).clickable(onClick = onClick),
-            shape = CircleShape,
+            shape = RoundedCornerShape(16.dp),
             color = tint,
             shadowElevation = elevation,
             tonalElevation = 0.dp,
@@ -664,6 +702,7 @@ private fun AppGrid(
     modifier: Modifier,
     onLaunch: (String) -> Unit,
     onOpenLink: (String, String?) -> Unit = { _, _ -> },
+    tileAlign: Alignment.Horizontal = Alignment.CenterHorizontally,
 ) {
     Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
         items.chunked(cols).forEach { rowItems ->
@@ -671,13 +710,13 @@ private fun AppGrid(
                 rowItems.forEach { item ->
                     Box(Modifier.weight(1f)) {
                         if (item.type == ItemType.LINK) {
-                            LinkTile(item.name.orEmpty(), item.emoji, showLabels) {
+                            LinkTile(item.name.orEmpty(), item.emoji, showLabels, tileAlign) {
                                 item.url?.let { onOpenLink(it, item.targetPackage) }
                             }
                         } else {
                             val app = item.packageName?.let { appMap[it] }
                             if (app != null) {
-                                AppTile(app = app, showLabel = showLabels) { onLaunch(app.packageName) }
+                                AppTile(app = app, showLabel = showLabels, align = tileAlign) { onLaunch(app.packageName) }
                             }
                         }
                     }
@@ -689,14 +728,14 @@ private fun AppGrid(
 }
 
 @Composable
-private fun Tile(label: String, showLabel: Boolean, onClick: () -> Unit, icon: @Composable () -> Unit) {
+private fun Tile(label: String, showLabel: Boolean, align: Alignment.Horizontal = Alignment.CenterHorizontally, onClick: () -> Unit, icon: @Composable () -> Unit) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(14.dp))
             .clickable(onClick = onClick)
             .padding(vertical = 8.dp, horizontal = 2.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
+        horizontalAlignment = align,
     ) {
         Box(Modifier.size(50.dp), contentAlignment = Alignment.Center) { icon() }
         if (showLabel) {
@@ -714,21 +753,21 @@ private fun Tile(label: String, showLabel: Boolean, onClick: () -> Unit, icon: @
 }
 
 @Composable
-private fun AppTile(app: AppInfo, showLabel: Boolean = true, onClick: () -> Unit) {
+private fun AppTile(app: AppInfo, showLabel: Boolean = true, align: Alignment.Horizontal = Alignment.CenterHorizontally, onClick: () -> Unit) {
     val style = LocalIconStyle.current
     val bitmap = remember(app.packageName, style.themed) {
         (if (style.themed) themedIconBitmap(app.icon, 144, style.fg, style.bg) else null)
             ?.asImageBitmap()
             ?: app.icon.toBitmap(144, 144).asImageBitmap()
     }
-    Tile(app.label, showLabel, onClick) {
+    Tile(app.label, showLabel, align, onClick) {
         Image(bitmap = bitmap, contentDescription = app.label, modifier = Modifier.size(50.dp).clip(RoundedCornerShape(12.dp)))
     }
 }
 
 @Composable
-private fun LinkTile(label: String, emoji: String?, showLabel: Boolean, onClick: () -> Unit) {
-    Tile(label, showLabel, onClick) {
+private fun LinkTile(label: String, emoji: String?, showLabel: Boolean, align: Alignment.Horizontal = Alignment.CenterHorizontally, onClick: () -> Unit) {
+    Tile(label, showLabel, align, onClick) {
         if (!emoji.isNullOrBlank()) {
             Text(emoji, fontSize = 30.sp)
         } else {
