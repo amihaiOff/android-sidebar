@@ -28,4 +28,9 @@ object Permissions {
             Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS,
             Uri.parse("package:${context.packageName}"),
         )
+
+    fun hasUsageAccess(context: Context): Boolean =
+        com.personal.sidebar.apps.Recents.hasUsageAccess(context)
+
+    fun usageAccessIntent(): Intent = Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS)
 }

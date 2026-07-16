@@ -43,8 +43,10 @@ running handle re-arms on each change):
   rest of the panel to focus on it. Edit/delete folders from settings.
 - **Groups** — **New group**: a titled section of apps shown inline in the main
   grid (always visible, unlike folders).
-- **Recent apps** — the bottom of the panel has a divider and the last 4 apps
-  you launched from the sidebar.
+- **Recent apps** — the bottom of the panel shows the last 4 recent apps. With
+  the **Usage access** permission granted these are phone-wide (whatever you
+  used most recently on the device); otherwise they fall back to the apps most
+  recently launched from the sidebar.
 - **Settings gear** — a gear at the bottom-left of the panel opens the app's
   settings.
 - **Reorder** — long-press the drag handle on any item in the settings list to

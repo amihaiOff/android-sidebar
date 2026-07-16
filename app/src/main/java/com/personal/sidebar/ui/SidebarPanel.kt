@@ -74,6 +74,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.graphics.drawable.toBitmap
+import kotlinx.coroutines.withContext
 import com.personal.sidebar.Edge
 import com.personal.sidebar.MainActivity
 import com.personal.sidebar.Settings
@@ -156,7 +157,17 @@ fun SidebarPanel(
 
     var appMap by remember { mutableStateOf<Map<String, AppInfo>?>(null) }
     LaunchedEffect(Unit) { appMap = AppRepository.map(context) }
-    val recents = remember { Settings.recents(context) }
+
+    // Phone-wide recents when Usage access is granted; otherwise the apps most
+    // recently launched from the sidebar itself.
+    var recents by remember { mutableStateOf<List<String>>(emptyList()) }
+    LaunchedEffect(appMap) {
+        val map = appMap ?: return@LaunchedEffect
+        recents = withContext(kotlinx.coroutines.Dispatchers.IO) {
+            com.personal.sidebar.apps.Recents.recentApps(context, map.keys, 4)
+                .ifEmpty { Settings.recents(context) }
+        }
+    }
 
     val onLaunch: (String) -> Unit = { pkg ->
         Settings.addRecent(context, pkg)
@@ -330,32 +341,9 @@ private fun PanelContent(
             .verticalScroll(rememberScrollState())
             .onSizeChanged { widthPx = it.width.toFloat().coerceAtLeast(1f) },
     ) {
-        // Loose apps grid.
-        if (apps.isNotEmpty()) {
-            val dim by animateFloatAsState(if (dimActive) 0.35f else 1f, label = "appsDim")
-            AppGrid(apps, COLUMNS, appMap, Modifier.alpha(dim), onLaunch)
-        }
-
-        // Titled groups (inline sections in the main grid).
-        groups.forEach { g ->
-            val dim by animateFloatAsState(if (dimActive) 0.35f else 1f, label = "groupDim")
-            Column(Modifier.alpha(dim)) {
-                Spacer(Modifier.height(12.dp))
-                Text(
-                    text = g.name ?: "",
-                    color = LabelPrimary,
-                    fontWeight = FontWeight.SemiBold,
-                    fontSize = 14.sp,
-                    modifier = Modifier.padding(start = 4.dp, bottom = 6.dp),
-                )
-                AppGrid(g.packages.map { SidebarItem.app(it) }, COLUMNS, appMap, Modifier, onLaunch)
-            }
-        }
-
+        // Folders at the top: a row of emoji circles, with the open folder's
+        // contents directly below (no divider between them).
         if (folders.isNotEmpty()) {
-            if (apps.isNotEmpty()) Spacer(Modifier.height(14.dp))
-
-            // Row of folder circles (wraps if there are many).
             FlowRow(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(14.dp),
@@ -382,15 +370,6 @@ private fun PanelContent(
                 }
             }
 
-            // The "line" under the circles; folders open below it.
-            Box(
-                Modifier
-                    .fillMaxWidth()
-                    .padding(vertical = 10.dp)
-                    .height(1.dp)
-                    .background(Color.White.copy(alpha = 0.15f))
-            )
-
             val open = folders.firstOrNull { it.key() == openKey }
             var shown by remember { mutableStateOf<SidebarItem?>(null) }
             LaunchedEffect(openKey) { if (open != null) shown = open }
@@ -401,7 +380,34 @@ private fun PanelContent(
                 exit = fadeOut() + scaleOut(transformOrigin = TransformOrigin(pivotX, 0f), targetScale = 0.5f) +
                     shrinkVertically(shrinkTowards = Alignment.Top),
             ) {
-                shown?.let { FolderExpanded(it, style, appMap, onLaunch) }
+                Box(Modifier.padding(top = 8.dp)) {
+                    shown?.let { FolderExpanded(it, style, appMap, onLaunch) }
+                }
+            }
+        }
+
+        // Loose apps grid.
+        if (apps.isNotEmpty()) {
+            if (folders.isNotEmpty()) Spacer(Modifier.height(14.dp))
+            val dim by animateFloatAsState(if (dimActive) 0.35f else 1f, label = "appsDim")
+            AppGrid(apps, COLUMNS, appMap, Modifier.alpha(dim), onLaunch)
+        }
+
+        // Titled groups (inline sections in the main grid).
+        groups.forEach { g ->
+            val dim by animateFloatAsState(if (dimActive) 0.35f else 1f, label = "groupDim")
+            Column(Modifier.alpha(dim)) {
+                Spacer(Modifier.height(12.dp))
+                if (!g.name.isNullOrBlank()) {
+                    Text(
+                        text = g.name,
+                        color = LabelPrimary,
+                        fontWeight = FontWeight.SemiBold,
+                        fontSize = 14.sp,
+                        modifier = Modifier.padding(start = 4.dp, bottom = 6.dp),
+                    )
+                }
+                AppGrid(g.packages.map { SidebarItem.app(it) }, COLUMNS, appMap, Modifier, onLaunch)
             }
         }
     }

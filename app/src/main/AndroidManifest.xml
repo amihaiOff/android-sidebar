@@ -19,6 +19,10 @@
     <!-- Show the low-priority ongoing notification on Android 13+. -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
+    <!-- Device-wide recent apps (special "Usage access" grant). -->
+    <uses-permission android:name="android.permission.PACKAGE_USAGE_STATS"
+        tools:ignore="ProtectedPermissions" />
+
     <!-- Fallback discovery path in case QUERY_ALL_PACKAGES is ever removed. -->
     <queries>
         <intent>

@@ -201,7 +201,9 @@ internal fun FolderEditScreen(
         SubScreen(
             title = (if (existing == null) "New " else "Edit ") + noun,
             trailingLabel = "Save",
-            trailingEnabled = all != null && name.isNotBlank() && selected.isNotEmpty(),
+            // Name is optional for folders (the emoji is the identity); groups
+            // still want a title.
+            trailingEnabled = all != null && selected.isNotEmpty() && (!asGroup || name.isNotBlank()),
             onBack = onCancel,
             onTrailing = {
                 onSave(

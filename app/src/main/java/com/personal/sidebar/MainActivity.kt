@@ -196,6 +196,7 @@ private fun HomeScreen(
     val context = LocalContext.current
     var overlayGranted by remember { mutableStateOf(Permissions.canDrawOverlays(context)) }
     var batteryExempt by remember { mutableStateOf(Permissions.isIgnoringBatteryOptimizations(context)) }
+    var usageGranted by remember { mutableStateOf(Permissions.hasUsageAccess(context)) }
 
     val lifecycleOwner = LocalLifecycleOwner.current
     DisposableEffect(lifecycleOwner) {
@@ -203,6 +204,7 @@ private fun HomeScreen(
             if (event == Lifecycle.Event.ON_RESUME) {
                 overlayGranted = Permissions.canDrawOverlays(context)
                 batteryExempt = Permissions.isIgnoringBatteryOptimizations(context)
+                usageGranted = Permissions.hasUsageAccess(context)
             }
         }
         lifecycleOwner.lifecycle.addObserver(observer)
@@ -241,6 +243,9 @@ private fun HomeScreen(
         }
         PermissionCard("Ignore battery optimization", "Recommended. Stops OEMs killing the handle.", batteryExempt) {
             if (!batteryExempt) OutlinedButton(onClick = { context.startActivity(Permissions.batteryOptimizationIntent(context)) }) { Text("Open") }
+        }
+        PermissionCard("Usage access", "Optional. Shows your phone-wide recent apps in the panel.", usageGranted) {
+            if (!usageGranted) OutlinedButton(onClick = { context.startActivity(Permissions.usageAccessIntent()) }) { Text("Open") }
         }
 
         Spacer(Modifier.height(8.dp))
