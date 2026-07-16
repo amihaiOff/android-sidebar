@@ -47,6 +47,10 @@ data class PanelConfig(
     /** Background opacity of the panel: 0.35 = very see-through, 1 = solid.
      *  Kept low by default so the backdrop blur shows as frosted glass. */
     val opacity: Float = 0.6f,
+    /** Panel tint lightness: 0 = near-black, 1 = light grey. */
+    val brightness: Float = 0.3f,
+    /** Backdrop blur (frost) radius in dp; 0 = off. Needs Android 12+. */
+    val blurDp: Int = 48,
 )
 
 /** The whole persisted sidebar configuration. */

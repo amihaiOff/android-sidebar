@@ -37,6 +37,7 @@ class PanelController(private val context: Context) {
                     edge = config.handle.edge,
                     items = config.items,
                     panelOpacity = config.panel.opacity,
+                    panelBrightness = config.panel.brightness,
                     registerDismiss = { dismissTrigger = it },
                     onDismissed = { hide() },
                 )
@@ -55,7 +56,7 @@ class PanelController(private val context: Context) {
 
         // Wire lifecycle/owners BEFORE the view attaches to the window.
         newHost.attach(view)
-        windowManager.addView(view, panelParams())
+        windowManager.addView(view, panelParams(config.panel.blurDp))
         view.requestFocus()
 
         composeView = view
@@ -71,7 +72,7 @@ class PanelController(private val context: Context) {
         runCatching { windowManager.removeView(view) }
     }
 
-    private fun panelParams(): WindowManager.LayoutParams {
+    private fun panelParams(blurDp: Int): WindowManager.LayoutParams {
         val params = WindowManager.LayoutParams(
             WindowManager.LayoutParams.MATCH_PARENT,
             WindowManager.LayoutParams.MATCH_PARENT,
@@ -90,10 +91,10 @@ class PanelController(private val context: Context) {
         // Real backdrop blur (frosted glass) on Android 12+, when the device
         // supports cross-window blur. Degrades gracefully to a plain translucent
         // panel where it isn't available.
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && windowManager.isCrossWindowBlurEnabled) {
+        if (blurDp > 0 && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && windowManager.isCrossWindowBlurEnabled) {
             val density = context.resources.displayMetrics.density
             params.flags = params.flags or WindowManager.LayoutParams.FLAG_BLUR_BEHIND
-            params.blurBehindRadius = (48 * density).toInt()
+            params.blurBehindRadius = (blurDp * density).toInt()
         }
         return params
     }

@@ -258,6 +258,12 @@ private fun HomeScreen(
                 SliderRow("Panel opacity", config.panel.opacity, 0.35f..1f, "${(config.panel.opacity * 100).toInt()}%") {
                     onConfigChange(config.copy(panel = config.panel.copy(opacity = it)))
                 }
+                SliderRow("Panel brightness", config.panel.brightness, 0f..1f, "${(config.panel.brightness * 100).toInt()}%") {
+                    onConfigChange(config.copy(panel = config.panel.copy(brightness = it)))
+                }
+                SliderRow("Frost (blur)", config.panel.blurDp.toFloat(), 0f..80f, "${config.panel.blurDp} dp") {
+                    onConfigChange(config.copy(panel = config.panel.copy(blurDp = it.toInt())))
+                }
             }
         }
 

@@ -63,28 +63,36 @@ import com.personal.sidebar.apps.AppRepository
 import com.personal.sidebar.model.ItemType
 import com.personal.sidebar.model.SidebarItem
 
-// Fixed dark palette to match the iOS-style translucent launcher look.
-// A lighter tint (vs near-black) so, at a lower opacity, the backdrop blur
-// reads as frosted glass instead of a dark block.
-private val PanelBase = Color(0xFF2C2C2E)
-// Folder cards float above the panel in a clearly lighter grey + drop shadow.
-private val FolderCardBg = Color(0xFF55555C)
 private val LabelPrimary = Color(0xFFF2F2F7)
 private val LabelSecondary = Color(0xFFC7C7CF)
+
+/** Panel tint grey derived from the brightness setting (0 = dark, 1 = light). */
+private fun panelColor(brightness: Float): Color {
+    val c = (16 + brightness.coerceIn(0f, 1f) * 176).toInt().coerceIn(0, 255)
+    return Color(c, c, c)
+}
+
+/** Folder cards sit a step lighter than the panel so they read as raised. */
+private fun folderColor(brightness: Float): Color {
+    val base = (16 + brightness.coerceIn(0f, 1f) * 176).toInt()
+    val c = (base + 46).coerceIn(0, 220)
+    return Color(c, c, c)
+}
 private const val COLUMNS = 4
 
 /**
  * Full-screen overlay content: a translucent scrim plus a dark rounded panel
  * that springs in from [edge]. Renders the user's curated [items]: loose apps
  * as an icon grid and folders as expandable dropdown sections. All curation
- * happens in app settings — the panel is view-only. [panelOpacity] controls how
- * see-through the panel background is.
+ * happens in app settings — the panel is view-only. [panelOpacity] and
+ * [panelBrightness] control the panel background tint.
  */
 @Composable
 fun SidebarPanel(
     edge: Edge,
     items: List<SidebarItem>,
     panelOpacity: Float,
+    panelBrightness: Float,
     registerDismiss: (() -> Unit) -> Unit,
     onDismissed: () -> Unit,
 ) {
@@ -125,7 +133,13 @@ fun SidebarPanel(
                 animationSpec = spring(stiffness = Spring.StiffnessMedium)
             ) { full -> if (edge == Edge.LEFT) -full else full } + fadeOut(),
         ) {
-            PanelCard(edge = edge, items = items, appMap = appMap, opacity = panelOpacity) { pkg ->
+            PanelCard(
+                edge = edge,
+                items = items,
+                appMap = appMap,
+                opacity = panelOpacity,
+                brightness = panelBrightness,
+            ) { pkg ->
                 AppRepository.launch(context, pkg)
                 dismiss()
             }
@@ -139,6 +153,7 @@ private fun PanelCard(
     items: List<SidebarItem>,
     appMap: Map<String, AppInfo>?,
     opacity: Float,
+    brightness: Float,
     onLaunch: (String) -> Unit,
 ) {
     val shape = if (edge == Edge.LEFT) {
@@ -155,7 +170,7 @@ private fun PanelCard(
             .width(360.dp)
             .fillMaxHeight()
             .clip(shape)
-            .background(PanelBase.copy(alpha = opacity.coerceIn(0.35f, 1f))),
+            .background(panelColor(brightness).copy(alpha = opacity.coerceIn(0.35f, 1f))),
     ) {
         Column(
             Modifier
@@ -191,6 +206,7 @@ private fun PanelCard(
                                 FolderSection(
                                     folder = entry,
                                     appMap = appMap,
+                                    brightness = brightness,
                                     isExpanded = expanded[fkey] ?: true,
                                     onToggle = { expanded[fkey] = !(expanded[fkey] ?: true) },
                                     onLaunch = onLaunch,
@@ -220,6 +236,7 @@ private fun PanelCard(
 private fun FolderSection(
     folder: SidebarItem,
     appMap: Map<String, AppInfo>,
+    brightness: Float,
     isExpanded: Boolean,
     onToggle: () -> Unit,
     onLaunch: (String) -> Unit,
@@ -229,7 +246,7 @@ private fun FolderSection(
     Surface(
         modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp),
         shape = RoundedCornerShape(20.dp),
-        color = FolderCardBg,
+        color = folderColor(brightness),
         shadowElevation = 16.dp,
         tonalElevation = 0.dp,
         border = BorderStroke(1.dp, Color.White.copy(alpha = 0.10f)),

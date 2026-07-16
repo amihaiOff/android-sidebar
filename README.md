@@ -41,8 +41,9 @@ running handle re-arms on each change):
   chevron) that reveals its apps inline. Edit or delete folders from settings.
 - **Reorder** — long-press the drag handle on any item in the settings list to
   drag it up or down; the new order is what the panel shows.
-- **Transparency** — a Panel opacity slider controls how see-through the panel
-  background is.
+- **Panel look** — sliders for opacity (see-through), brightness (tint from
+  near-black to light grey), and frost/blur strength (real backdrop blur on
+  Android 12+ where the device supports cross-window blur).
 
 Config is stored as JSON in SharedPreferences (`kotlinx.serialization`).
 
