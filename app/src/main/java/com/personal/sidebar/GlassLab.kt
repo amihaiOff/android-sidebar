@@ -205,11 +205,12 @@ private fun GlassPreview(p: PanelConfig, f: FolderConfig, g: GroupConfig) {
                 Modifier.fillMaxSize().padding(12.dp),
                 verticalArrangement = Arrangement.spacedBy(10.dp),
             ) {
-                // Folder circles row (centered; the first is "open").
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(14.dp, Alignment.CenterHorizontally)) {
-                    PreviewFolderCircle(f, "📁", selected = true)
-                    PreviewFolderCircle(f, "🎮", selected = false)
-                    PreviewFolderCircle(f, "🎵", selected = false)
+                // Folder tiles row on the 4-column grid (first is "open").
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+                    listOf("📁" to true, "🎮" to false, "🎵" to false).forEach { (e, sel) ->
+                        Box(Modifier.weight(1f)) { PreviewFolderCircle(f, e, sel) }
+                    }
+                    Box(Modifier.weight(1f))
                 }
                 // Open folder contents, directly below (no divider).
                 PreviewFolderExpanded(f)
@@ -257,14 +258,14 @@ private fun PreviewFolderCircle(f: FolderConfig, emoji: String, selected: Boolea
     val elevation = (maxOf(f.shadowTopDp, f.shadowBottomDp, f.shadowLeftDp, f.shadowRightDp) * 0.6f)
         .coerceIn(0f, 16f).dp
     Surface(
-        modifier = Modifier.size(52.dp),
-        shape = RoundedCornerShape(15.dp),
+        modifier = Modifier.size(58.dp),
+        shape = RoundedCornerShape(17.dp),
         color = tint,
         shadowElevation = elevation,
         border = if (f.edgeDp > 0f) BorderStroke(f.edgeDp.dp, Color.White.copy(alpha = if (selected) 0.75f else 0.4f)) else null,
     ) {
         Box(contentAlignment = Alignment.Center) {
-            Text(emoji, fontSize = 24.sp)
+            Text(emoji, fontSize = 28.sp)
         }
     }
 }

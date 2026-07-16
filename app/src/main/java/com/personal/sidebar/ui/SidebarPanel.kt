@@ -516,32 +516,43 @@ private fun PanelContent(
             .verticalScroll(rememberScrollState())
             .onSizeChanged { widthPx = it.width.toFloat().coerceAtLeast(1f) },
     ) {
-        // Folders at the top: a row of emoji circles, with the open folder's
-        // contents directly below (no divider between them).
+        // Folders at the top, laid out on the SAME 4-column grid as the groups
+        // below so their tiles line up in columns. The open folder's contents
+        // appear directly below (no divider between them).
         if (folders.isNotEmpty()) {
-            FlowRow(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(14.dp, Alignment.CenterHorizontally),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
+            // Inset by the group card's inner padding (10dp) so folder columns
+            // line up with the app-icon columns inside the groups below.
+            Column(
+                Modifier.fillMaxWidth().padding(horizontal = 10.dp),
+                verticalArrangement = Arrangement.spacedBy(6.dp),
             ) {
-                folders.forEach { f ->
-                    val key = f.key()
-                    val isOpen = openKey == key
-                    val dim by animateFloatAsState(if (dimActive && !isOpen) 0.4f else 1f, label = "circleDim")
-                    FolderCircle(
-                        folder = f,
-                        style = style,
-                        selected = isOpen,
-                        modifier = Modifier
-                            .alpha(dim)
-                            .onGloballyPositioned { c ->
-                                centers[key] = c.positionInParent().x + c.size.width / 2f
-                            },
-                        onClick = {
-                            pivotX = ((centers[key] ?: (widthPx / 2f)) / widthPx).coerceIn(0f, 1f)
-                            openKey = if (isOpen) null else key
-                        },
-                    )
+                folders.chunked(COLUMNS).forEach { rowFolders ->
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+                        rowFolders.forEach { f ->
+                            val key = f.key()
+                            val isOpen = openKey == key
+                            val dim by animateFloatAsState(if (dimActive && !isOpen) 0.4f else 1f, label = "circleDim")
+                            Box(
+                                Modifier
+                                    .weight(1f)
+                                    .onGloballyPositioned { c ->
+                                        centers[key] = c.positionInParent().x + c.size.width / 2f
+                                    },
+                            ) {
+                                FolderCircle(
+                                    folder = f,
+                                    style = style,
+                                    selected = isOpen,
+                                    modifier = Modifier.alpha(dim),
+                                    onClick = {
+                                        pivotX = ((centers[key] ?: (widthPx / 2f)) / widthPx).coerceIn(0f, 1f)
+                                        openKey = if (isOpen) null else key
+                                    },
+                                )
+                            }
+                        }
+                        repeat(COLUMNS - rowFolders.size) { Box(Modifier.weight(1f)) }
+                    }
                 }
             }
 
@@ -629,10 +640,13 @@ private fun FolderCircle(
     val tint = panelColor(style.brightness).copy(alpha = style.opacity.coerceIn(0f, 1f))
     val elevation = (maxOf(style.shadowTopDp, style.shadowBottomDp, style.shadowLeftDp, style.shadowRightDp) * 0.6f)
         .coerceIn(0f, 16f).dp
-    Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = modifier) {
+    Column(
+        modifier = modifier.fillMaxWidth().padding(horizontal = 2.dp),
+        horizontalAlignment = Alignment.Start,
+    ) {
         Surface(
-            modifier = Modifier.size(58.dp).clickable(onClick = onClick),
-            shape = RoundedCornerShape(16.dp),
+            modifier = Modifier.size(66.dp).clickable(onClick = onClick),
+            shape = RoundedCornerShape(18.dp),
             color = tint,
             shadowElevation = elevation,
             tonalElevation = 0.dp,
@@ -640,7 +654,7 @@ private fun FolderCircle(
         ) {
             Box(contentAlignment = Alignment.Center) {
                 val glyph = folder.emoji?.takeIf { it.isNotBlank() } ?: folder.name?.take(1) ?: "📁"
-                Text(glyph, fontSize = 26.sp)
+                Text(glyph, fontSize = 32.sp)
             }
         }
         if (!folder.name.isNullOrBlank()) {
@@ -650,8 +664,8 @@ private fun FolderCircle(
                 fontSize = 10.sp,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
-                textAlign = TextAlign.Center,
-                modifier = Modifier.padding(top = 4.dp).width(58.dp),
+                textAlign = TextAlign.Start,
+                modifier = Modifier.padding(top = 4.dp).width(66.dp),
             )
         }
     }
