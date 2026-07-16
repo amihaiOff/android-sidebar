@@ -1,7 +1,5 @@
 package com.personal.sidebar
 
-import android.graphics.RenderEffect
-import android.graphics.Shader
 import android.os.Build
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -14,9 +12,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.requiredSize
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -37,17 +33,17 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.asComposeRenderEffect
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInParent
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlin.math.roundToInt
@@ -123,11 +119,9 @@ internal fun GlassLabScreen(
 
 @Composable
 private fun GlassPreview(blur: Float, tintAlpha: Float, stroke: Float) {
-    val brush = Brush.linearGradient(
-        listOf(
-            Color(0xFF7C4DFF), Color(0xFF2196F3), Color(0xFF00E5FF),
-            Color(0xFF00E676), Color(0xFFFFEB3B), Color(0xFFFF5252),
-        )
+    val colors = listOf(
+        Color(0xFF7C4DFF), Color(0xFF2196F3), Color(0xFF00E5FF),
+        Color(0xFF00E676), Color(0xFFFFEB3B), Color(0xFFFF5252),
     )
     BoxWithConstraints(
         Modifier
@@ -135,15 +129,21 @@ private fun GlassPreview(blur: Float, tintAlpha: Float, stroke: Float) {
             .height(260.dp)
             .clip(RoundedCornerShape(20.dp)),
     ) {
-        val boxW = maxWidth
-        val boxH = maxHeight
+        val density = LocalDensity.current
+        val boxWpx = with(density) { maxWidth.toPx() }
+        val boxHpx = with(density) { maxHeight.toPx() }
         val shape = RoundedCornerShape(24.dp)
 
-        // Sharp colourful backdrop.
-        Box(Modifier.matchParentSize().background(brush))
+        // Sharp colourful backdrop spanning the whole preview.
+        Box(
+            Modifier.matchParentSize().background(
+                Brush.linearGradient(colors, start = Offset(0f, 0f), end = Offset(boxWpx, boxHpx))
+            )
+        )
 
-        // The glass card. Its position within this box lets us draw a blurred
-        // copy of the backdrop aligned underneath it (true frosted-glass look).
+        // The glass card. We know its position within this box, so we draw the
+        // SAME gradient inside it — shifted to line up with the backdrop — and
+        // blur it. That gives a true frosted-glass slice of what's behind.
         var pos by remember { mutableStateOf(Offset.Zero) }
         Box(
             modifier = Modifier
@@ -155,19 +155,21 @@ private fun GlassPreview(blur: Float, tintAlpha: Float, stroke: Float) {
                 .border(stroke.dp, Color.White.copy(alpha = 0.35f), shape),
             contentAlignment = Alignment.Center,
         ) {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && blur > 0f) {
-                Box(
-                    Modifier
-                        .requiredSize(boxW, boxH)
-                        .offset { IntOffset(-pos.x.roundToInt(), -pos.y.roundToInt()) }
-                        .graphicsLayer {
-                            renderEffect = RenderEffect
-                                .createBlurEffect(blur, blur, Shader.TileMode.CLAMP)
-                                .asComposeRenderEffect()
-                        }
-                        .background(brush)
-                )
-            }
+            Box(
+                Modifier
+                    .matchParentSize()
+                    .then(if (blur > 0f) Modifier.blur(blur.dp) else Modifier)
+                    .drawBehind {
+                        drawRect(
+                            brush = Brush.linearGradient(
+                                colors,
+                                start = Offset(-pos.x, -pos.y),
+                                end = Offset(boxWpx - pos.x, boxHpx - pos.y),
+                            ),
+                            size = size,
+                        )
+                    }
+            )
             // Frosting tint — pure white at low alpha.
             Box(Modifier.matchParentSize().background(Color.White.copy(alpha = tintAlpha)))
             Text("Glass", color = Color.White, fontWeight = FontWeight.SemiBold)

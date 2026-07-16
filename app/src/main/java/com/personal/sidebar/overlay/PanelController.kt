@@ -13,9 +13,11 @@ import com.personal.sidebar.Edge
 import com.personal.sidebar.model.SidebarConfig
 import com.personal.sidebar.ui.SidebarPanel
 
-/** Panel width in dp — the window is sized to this so the frost/tint only
- *  affect the panel strip, never the whole screen. */
-private const val PANEL_WIDTH_DP = 360
+/** The panel window spans this fraction of the screen width (capped in dp), so
+ *  it's clearly a side panel with a gap beside it — and the frost/tint only
+ *  affect that strip, never the whole screen. */
+private const val PANEL_WIDTH_FRACTION = 0.72f
+private const val PANEL_MAX_WIDTH_DP = 340
 
 /**
  * Owns the on-demand panel window. [show] inflates a Compose overlay (with a
@@ -92,9 +94,13 @@ class PanelController(private val context: Context) {
     }
 
     private fun panelParams(edge: Edge, blurDp: Int): WindowManager.LayoutParams {
-        val density = context.resources.displayMetrics.density
+        val metrics = context.resources.displayMetrics
+        val density = metrics.density
+        val width = (metrics.widthPixels * PANEL_WIDTH_FRACTION)
+            .toInt()
+            .coerceAtMost((PANEL_MAX_WIDTH_DP * density).toInt())
         val params = WindowManager.LayoutParams(
-            (PANEL_WIDTH_DP * density).toInt(),
+            width,
             WindowManager.LayoutParams.MATCH_PARENT,
             WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
             // Focusable (back key) + touch-modal so outside taps don't reach apps
