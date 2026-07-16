@@ -50,6 +50,7 @@ import androidx.compose.ui.unit.sp
 import com.personal.sidebar.model.FolderConfig
 import com.personal.sidebar.model.GroupConfig
 import com.personal.sidebar.model.PanelConfig
+import com.personal.sidebar.ui.drawGroupDropShadow
 import com.personal.sidebar.ui.drawInnerShadow
 import com.personal.sidebar.ui.drawSideShadows
 import kotlin.math.roundToInt
@@ -219,10 +220,12 @@ private fun GlassPreview(p: PanelConfig, f: FolderConfig, g: GroupConfig) {
                 }
                 // A titled group frame.
                 Surface(
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .drawBehind { drawGroupDropShadow(g.cornerDp.dp.toPx(), g.shadowDp) },
                     shape = RoundedCornerShape(g.cornerDp.dp),
                     color = Color.Transparent,
-                    shadowElevation = g.shadowDp.dp,
+                    shadowElevation = 0.dp,
                     border = if (g.borderDp > 0f) BorderStroke(g.borderDp.dp, Color.White.copy(alpha = g.borderBrightness.coerceIn(0f, 1f))) else null,
                 ) {
                     Box {

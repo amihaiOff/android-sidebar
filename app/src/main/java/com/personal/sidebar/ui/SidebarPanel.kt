@@ -159,6 +159,35 @@ internal fun androidx.compose.ui.graphics.drawscope.DrawScope.drawInnerShadow(co
     }
 }
 
+/**
+ * Draws a soft *outward* drop shadow that follows the card's rounded corners, so
+ * the card reads as a glass pane floating above the panel. The card's own rounded
+ * rect is clipped out (it may be translucent), leaving only the outer bleed; a
+ * slight downward offset makes the lift feel natural.
+ */
+internal fun androidx.compose.ui.graphics.drawscope.DrawScope.drawGroupDropShadow(cornerPx: Float, extentDp: Float) {
+    val e = extentDp.dp.toPx()
+    if (e <= 0f) return
+    val w = size.width
+    val h = size.height
+    val dy = e * 0.35f
+    val paint = android.graphics.Paint().apply {
+        isAntiAlias = true
+        color = android.graphics.Color.argb(140, 0, 0, 0)
+        maskFilter = android.graphics.BlurMaskFilter(e, android.graphics.BlurMaskFilter.Blur.NORMAL)
+    }
+    val cardPath = android.graphics.Path().apply {
+        addRoundRect(0f, 0f, w, h, cornerPx, cornerPx, android.graphics.Path.Direction.CW)
+    }
+    drawIntoCanvas { canvas ->
+        val nc = canvas.nativeCanvas
+        val save = nc.save()
+        nc.clipOutPath(cardPath) // keep the shadow outside the (translucent) card
+        nc.drawRoundRect(0f, dy, w, h + dy, cornerPx, cornerPx, paint)
+        nc.restoreToCount(save)
+    }
+}
+
 /** Themed-icon rendering settings, provided down the panel tree. */
 internal data class IconStyle(val themed: Boolean, val fg: Int, val bg: Int)
 internal val LocalIconStyle = androidx.compose.runtime.staticCompositionLocalOf { IconStyle(false, 0, 0) }
@@ -514,10 +543,13 @@ private fun PanelContent(
             Spacer(Modifier.height(12.dp))
             val shape = RoundedCornerShape(groupStyle.cornerDp.dp)
             Surface(
-                modifier = Modifier.fillMaxWidth().alpha(dim),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .alpha(dim)
+                    .drawBehind { drawGroupDropShadow(groupStyle.cornerDp.dp.toPx(), groupStyle.shadowDp) },
                 shape = shape,
                 color = Color.Transparent,
-                shadowElevation = groupStyle.shadowDp.dp,
+                shadowElevation = 0.dp,
                 tonalElevation = 0.dp,
                 border = if (groupStyle.borderDp > 0f) {
                     BorderStroke(groupStyle.borderDp.dp, Color.White.copy(alpha = groupStyle.borderBrightness.coerceIn(0f, 1f)))
