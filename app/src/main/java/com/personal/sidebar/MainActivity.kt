@@ -135,22 +135,8 @@ private fun SidebarRoot() {
 
             Screen.GlassLab -> GlassLabScreen(
                 modifier = mod,
-                initialBlur = config.panel.blurDp.toFloat().coerceIn(0f, 40f),
-                initialTintAlpha = config.panel.opacity.coerceIn(0f, 0.6f),
-                initialStroke = config.panel.edgeDp.coerceIn(0f, 4f),
-                onApply = { blur, tintAlpha, stroke ->
-                    commit(
-                        config.copy(
-                            panel = config.panel.copy(
-                                blurDp = blur.toInt(),
-                                opacity = tintAlpha,
-                                brightness = 1f, // white frosting tint, like the lab
-                                edgeDp = stroke,
-                            )
-                        )
-                    )
-                    screen = Screen.Home
-                },
+                panel = config.panel,
+                onCommit = { newPanel -> commit(config.copy(panel = newPanel)) },
                 onBack = { screen = Screen.Home },
             )
 
@@ -279,33 +265,15 @@ private fun HomeScreen(
                 SliderRow("Position", handle.verticalBias, 0f..1f, positionLabel(handle.verticalBias)) {
                     setHandle(handle.copy(verticalBias = it))
                 }
-                SliderRow("Panel opacity", config.panel.opacity, 0.1f..1f, "${(config.panel.opacity * 100).toInt()}%") {
-                    onConfigChange(config.copy(panel = config.panel.copy(opacity = it)))
-                }
-                SliderRow("Panel brightness", config.panel.brightness, 0f..1f, "${(config.panel.brightness * 100).toInt()}%") {
-                    onConfigChange(config.copy(panel = config.panel.copy(brightness = it)))
-                }
-                SliderRow("Frost (blur)", config.panel.blurDp.toFloat(), 0f..80f, "${config.panel.blurDp} dp") {
-                    onConfigChange(config.copy(panel = config.panel.copy(blurDp = it.toInt())))
-                }
 
                 Spacer(Modifier.height(12.dp))
-                Text("Background", style = MaterialTheme.typography.labelLarge)
-                Row(Modifier.padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    SWATCHES.forEach { rgb ->
-                        ColorSwatch(
-                            rgb = rgb,
-                            selected = (config.panel.scrimColor and 0x00FFFFFF) == (rgb and 0x00FFFFFF),
-                            onClick = { onConfigChange(config.copy(panel = config.panel.copy(scrimColor = withRgb(config.panel.scrimColor, rgb)))) },
-                        )
-                    }
-                }
-                SliderRow("Background dim", config.panel.scrimAlpha, 0f..0.85f, "${(config.panel.scrimAlpha * 100).toInt()}%") {
-                    onConfigChange(config.copy(panel = config.panel.copy(scrimAlpha = it)))
-                }
-
-                Spacer(Modifier.height(12.dp))
-                OutlinedButton(onClick = onOpenGlassLab) { Text("Glassmorphism lab") }
+                Text(
+                    "The panel's frosted-glass look (blur, tint, edge, background) is tuned in the lab.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Spacer(Modifier.height(8.dp))
+                OutlinedButton(onClick = onOpenGlassLab) { Text("Panel & glass…") }
             }
         }
 

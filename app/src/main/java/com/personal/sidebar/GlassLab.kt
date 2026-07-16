@@ -1,6 +1,7 @@
 package com.personal.sidebar
 
 import android.os.Build
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
@@ -19,7 +20,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -28,7 +28,6 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -40,31 +39,41 @@ import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInParent
 import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
+import com.personal.sidebar.model.PanelConfig
 import kotlin.math.roundToInt
 
+private val LAB_SWATCHES = listOf(
+    0xFF000000.toInt(), 0xFF1A237E.toInt(), 0xFF004D40.toInt(), 0xFF3E2723.toInt(),
+    0xFF4C5BD4.toInt(), 0xFF2196F3.toInt(), 0xFF9C27B0.toInt(), 0xFFFFFFFF.toInt(),
+)
+
+/** Panel tint grey from the brightness setting (0 = near-black, 1 = white). */
+private fun labTint(brightness: Float): Color {
+    val c = (16 + brightness.coerceIn(0f, 1f) * 239).toInt().coerceIn(0, 255)
+    return Color(c, c, c)
+}
+
+private fun labWithRgb(argb: Int, rgb: Int): Int =
+    (argb.toLong() and 0xFF000000L).toInt() or (rgb and 0x00FFFFFF)
+
 /**
- * Developer "lab" to visualise a glassmorphism card (Method 1: RenderEffect
- * backdrop blur on Android 12+). Tune blur radius, tint alpha and edge stroke
- * live over a colourful background, and read off the Compose snippet.
+ * The single place to tune the frosted-glass panel. Every control edits a live
+ * [PanelConfig] reflected in the preview; changes are committed on back.
  */
 @Composable
 internal fun GlassLabScreen(
     modifier: Modifier,
-    initialBlur: Float,
-    initialTintAlpha: Float,
-    initialStroke: Float,
-    onApply: (blur: Float, tintAlpha: Float, stroke: Float) -> Unit,
+    panel: PanelConfig,
+    onCommit: (PanelConfig) -> Unit,
     onBack: () -> Unit,
 ) {
-    var blur by remember { mutableFloatStateOf(initialBlur) }
-    var tintAlpha by remember { mutableFloatStateOf(initialTintAlpha) }
-    var stroke by remember { mutableFloatStateOf(initialStroke) }
+    var p by remember { mutableStateOf(panel) }
+    fun done() { onCommit(p); onBack() }
 
     Column(
         modifier
@@ -73,42 +82,41 @@ internal fun GlassLabScreen(
             .padding(16.dp),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back") }
-            Text("Glassmorphism lab", style = MaterialTheme.typography.titleLarge)
+            IconButton(onClick = { done() }) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back") }
+            Text("Panel & glass", style = MaterialTheme.typography.titleLarge)
         }
         Text(
-            "Live RenderEffect blur + white tint + edge stroke over a colourful background. " +
-                "Glass reads best over high-contrast content — a flat colour makes it invisible.",
+            "Everything that controls the panel's frosted-glass look lives here. " +
+                "The preview updates live and is applied when you go back.",
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.padding(top = 4.dp, bottom = 14.dp),
         )
 
-        GlassPreview(blur = blur, tintAlpha = tintAlpha, stroke = stroke)
+        GlassPreview(p)
 
         Spacer(Modifier.height(16.dp))
-        LabSlider("Blur radius", blur, 0f..40f, "${blur.roundToInt()} px") { blur = it }
-        LabSlider("Tint alpha", tintAlpha, 0f..0.6f, "${(tintAlpha * 100).roundToInt()}%") { tintAlpha = it }
-        LabSlider("Edge stroke", stroke, 0f..4f, "${stroke.roundToInt()} dp") { stroke = it }
+        LabSlider("Frost (blur)", p.blurDp.toFloat(), 0f..80f, "${p.blurDp} dp") { p = p.copy(blurDp = it.toInt()) }
+        LabSlider("Tint opacity", p.opacity, 0.1f..1f, "${(p.opacity * 100).roundToInt()}%") { p = p.copy(opacity = it) }
+        LabSlider("Brightness", p.brightness, 0f..1f, "${(p.brightness * 100).roundToInt()}%") { p = p.copy(brightness = it) }
+        LabSlider("Edge stroke", p.edgeDp, 0f..4f, "${p.edgeDp.roundToInt()} dp") { p = p.copy(edgeDp = it) }
 
-        Spacer(Modifier.height(16.dp))
-        Button(
-            onClick = { onApply(blur, tintAlpha, stroke) },
-            modifier = Modifier.fillMaxWidth(),
-        ) { Text("Apply to sidebar") }
-        Text(
-            "Applies as: frost = blur, panel opacity = tint alpha (white tint), edge = stroke.",
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.padding(top = 6.dp),
-        )
-
-        Spacer(Modifier.height(16.dp))
-        CodeReference(blur = blur, tintAlpha = tintAlpha, stroke = stroke)
+        Spacer(Modifier.height(12.dp))
+        Text("Background", style = MaterialTheme.typography.labelLarge)
+        Row(Modifier.padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            LAB_SWATCHES.forEach { rgb ->
+                ColorDot(
+                    rgb = rgb,
+                    selected = (p.scrimColor and 0x00FFFFFF) == (rgb and 0x00FFFFFF),
+                    onClick = { p = p.copy(scrimColor = labWithRgb(p.scrimColor, rgb)) },
+                )
+            }
+        }
+        LabSlider("Background dim", p.scrimAlpha, 0f..0.85f, "${(p.scrimAlpha * 100).roundToInt()}%") { p = p.copy(scrimAlpha = it) }
 
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) {
             Text(
-                "Note: live blur needs Android 12+. Below that only the tint + stroke render.",
+                "Note: live blur needs Android 12+. Below that only tint + edge render.",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.error,
                 modifier = Modifier.padding(top = 10.dp),
@@ -118,66 +126,82 @@ internal fun GlassLabScreen(
 }
 
 @Composable
-private fun GlassPreview(blur: Float, tintAlpha: Float, stroke: Float) {
+private fun GlassPreview(p: PanelConfig) {
     BoxWithConstraints(
         Modifier
             .fillMaxWidth()
-            .height(260.dp)
+            .height(280.dp)
             .clip(RoundedCornerShape(20.dp)),
     ) {
         val density = LocalDensity.current
         val boxWpx = with(density) { maxWidth.toPx() }
         val boxHpx = with(density) { maxHeight.toPx() }
         val shape = RoundedCornerShape(topStart = 22.dp, bottomStart = 22.dp)
+        val previewBlur = minOf(p.blurDp, 40)
 
-        // A muted "wallpaper" (soft colour blobs on a dark gradient) — enough
-        // contrast for the frost to read, without the neon look.
+        // Muted "wallpaper" behind the panel.
         Box(Modifier.matchParentSize().drawBehind { drawScene(Offset.Zero, boxWpx, boxHpx) })
 
-        // The glass rendered as a side panel: a blurred slice of the wallpaper
-        // behind it, a white frosting tint, the glass edge, and placeholder app
-        // tiles — i.e. what the real panel looks like with these values.
         var pos by remember { mutableStateOf(Offset.Zero) }
         Box(
             modifier = Modifier
                 .align(Alignment.CenterEnd)
-                .fillMaxWidth(0.6f)
+                .fillMaxWidth(0.62f)
                 .fillMaxSize()
                 .onGloballyPositioned { pos = it.positionInParent() }
                 .clip(shape)
-                .border(stroke.dp, Color.White.copy(alpha = 0.3f), shape),
+                .border(p.edgeDp.dp, Color.White.copy(alpha = 0.3f), shape),
         ) {
+            // Blurred wallpaper slice.
             Box(
                 Modifier
                     .matchParentSize()
-                    .then(if (blur > 0f) Modifier.blur(blur.dp) else Modifier)
+                    .then(if (previewBlur > 0) Modifier.blur(previewBlur.dp) else Modifier)
                     .drawBehind { drawScene(pos, boxWpx, boxHpx) }
             )
-            // Frosting tint — pure white at low alpha (the "Apply" mapping).
-            Box(Modifier.matchParentSize().background(Color.White.copy(alpha = tintAlpha)))
-            // Placeholder app grid so it reads as the actual panel.
+            // Background scrim, then the panel tint.
+            Box(Modifier.matchParentSize().background(Color(p.scrimColor).copy(alpha = p.scrimAlpha.coerceIn(0f, 1f))))
+            Box(Modifier.matchParentSize().background(labTint(p.brightness).copy(alpha = p.opacity.coerceIn(0.1f, 1f))))
+
             Column(
-                Modifier.fillMaxSize().padding(14.dp),
-                verticalArrangement = Arrangement.spacedBy(14.dp),
+                Modifier.fillMaxSize().padding(12.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp),
             ) {
-                repeat(3) {
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                        repeat(3) { AppPlaceholder() }
-                    }
+                PreviewFolder(p)
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    repeat(3) { AppPlaceholder() }
                 }
             }
         }
     }
 }
 
-/** Draws the muted wallpaper. [origin] is the absolute position of this
- *  DrawScope's (0,0), so the same scene lines up between the backdrop and the
- *  blurred slice inside the glass. */
-private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawScene(
-    origin: Offset,
-    wpx: Float,
-    hpx: Float,
-) {
+/** A mock of the nested-glass folder inside the preview. */
+@Composable
+private fun PreviewFolder(p: PanelConfig) {
+    val folderTint = labTint(p.brightness).copy(alpha = (p.opacity + 0.28f).coerceIn(0.4f, 1f))
+    Surface(
+        shape = RoundedCornerShape(16.dp),
+        color = folderTint,
+        shadowElevation = 12.dp,
+        border = BorderStroke(1.5.dp, Color.White.copy(alpha = 0.4f)),
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        Column(Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Box(
+                Modifier
+                    .size(width = 54.dp, height = 6.dp)
+                    .clip(RoundedCornerShape(3.dp))
+                    .background(Color.White.copy(alpha = 0.5f))
+            )
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                repeat(3) { AppPlaceholder() }
+            }
+        }
+    }
+}
+
+private fun DrawScope.drawScene(origin: Offset, wpx: Float, hpx: Float) {
     drawRect(
         brush = Brush.linearGradient(
             listOf(Color(0xFF1F2933), Color(0xFF323D46), Color(0xFF29343C)),
@@ -196,18 +220,29 @@ private fun AppPlaceholder() {
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
         Box(
             Modifier
-                .size(34.dp)
-                .clip(RoundedCornerShape(9.dp))
-                .background(Color.White.copy(alpha = 0.28f))
+                .size(30.dp)
+                .clip(RoundedCornerShape(8.dp))
+                .background(Color.White.copy(alpha = 0.3f))
         )
         Spacer(Modifier.height(5.dp))
         Box(
             Modifier
-                .size(width = 26.dp, height = 4.dp)
+                .size(width = 24.dp, height = 4.dp)
                 .clip(RoundedCornerShape(2.dp))
-                .background(Color.White.copy(alpha = 0.4f))
+                .background(Color.White.copy(alpha = 0.45f))
         )
     }
+}
+
+@Composable
+private fun ColorDot(rgb: Int, selected: Boolean, onClick: () -> Unit) {
+    Surface(
+        modifier = Modifier.size(32.dp),
+        shape = RoundedCornerShape(50),
+        color = Color(rgb or 0xFF000000.toInt()),
+        border = if (selected) BorderStroke(3.dp, MaterialTheme.colorScheme.onSurface) else BorderStroke(1.dp, Color.White.copy(alpha = 0.3f)),
+        onClick = onClick,
+    ) {}
 }
 
 @Composable
@@ -224,34 +259,5 @@ private fun LabSlider(
             Text(valueLabel, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
         Slider(value = value.coerceIn(range.start, range.endInclusive), onValueChange = onChange, valueRange = range)
-    }
-}
-
-@Composable
-private fun CodeReference(blur: Float, tintAlpha: Float, stroke: Float) {
-    val snippet = """
-        Box(
-          Modifier
-            .graphicsLayer {
-              renderEffect = RenderEffect.createBlurEffect(
-                ${blur.roundToInt()}f, ${blur.roundToInt()}f, Shader.TileMode.CLAMP
-              ).asComposeRenderEffect()
-            }
-            .background(Color.White.copy(alpha = ${(tintAlpha * 100).roundToInt()} / 100f))
-            .border(${stroke.roundToInt()}.dp, Color.White.copy(alpha = 0.3f), shape)
-        )
-    """.trimIndent()
-    Surface(
-        color = MaterialTheme.colorScheme.surfaceVariant,
-        shape = RoundedCornerShape(12.dp),
-        modifier = Modifier.fillMaxWidth(),
-    ) {
-        Text(
-            snippet,
-            fontFamily = FontFamily.Monospace,
-            fontSize = 11.sp,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.padding(12.dp),
-        )
     }
 }

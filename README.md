@@ -37,17 +37,16 @@ running handle re-arms on each change):
   appear via **Add apps** (a searchable, multi-select list). It never dumps
   every installed app on you.
 - **Folders** — group apps with **New folder**: give it a name, pick members.
-  In the panel a folder shows as an expandable dropdown section (title +
-  chevron) that reveals its apps inline. Edit or delete folders from settings.
+  In the panel a folder is a nested-glass card (more opaque than the panel, with
+  a bright edge + shadow for depth) that expands to a 3-column grid; opening one
+  dims the rest of the panel to focus on it. Edit/delete folders from settings.
 - **Reorder** — long-press the drag handle on any item in the settings list to
   drag it up or down; the new order is what the panel shows.
-- **Panel look** — sliders for opacity (see-through), brightness (tint from
-  near-black to white), frost/blur strength (real backdrop blur on Android 12+
-  where the device supports cross-window blur), and background scrim colour/dim.
-  A thin white glass edge is drawn around the panel.
-- **Glassmorphism lab** — a developer screen (Appearance → Glassmorphism lab)
-  with a live `RenderEffect` blur preview over a colourful background and
-  sliders for blur radius, tint alpha, and edge stroke, plus a code snippet.
+- **Panel & glass (the lab)** — all the panel's frosted-glass controls live in
+  one screen (Appearance → **Panel & glass…**): frost/blur, tint opacity,
+  brightness (near-black → white), edge stroke, and background colour/dim — each
+  wired to a live preview that renders the panel over a stand-in wallpaper.
+  Changes apply on back. A thin white glass edge is drawn around the panel.
 
 Config is stored as JSON in SharedPreferences (`kotlinx.serialization`).
 

@@ -2,6 +2,7 @@ package com.personal.sidebar.ui
 
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.MutableTransitionState
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.fadeIn
@@ -39,13 +40,13 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
@@ -73,6 +74,7 @@ private fun panelColor(brightness: Float): Color {
     return Color(c, c, c)
 }
 private const val COLUMNS = 4
+private const val FOLDER_COLUMNS = 3
 
 /**
  * Full-screen overlay content: a translucent scrim plus a dark rounded panel
@@ -142,8 +144,8 @@ private fun PanelCard(
         RoundedCornerShape(topStart = 28.dp, bottomStart = 28.dp)
     }
     val systemPadding = WindowInsets.safeDrawing.asPaddingValues()
-    // Which folders are expanded (defaults to expanded); ephemeral per open.
-    val expanded = remember { mutableStateMapOf<String, Boolean>() }
+    // One folder open at a time; when open, everything else dims (focus).
+    var openKey by remember { mutableStateOf<String?>(null) }
 
     Box(
         modifier = Modifier
@@ -193,26 +195,35 @@ private fun PanelCard(
                     horizontalArrangement = Arrangement.spacedBy(2.dp),
                     modifier = Modifier.fillMaxSize(),
                 ) {
+                    val dimActive = openKey != null
                     items.forEachIndexed { index, entry ->
                         if (entry.type == ItemType.FOLDER) {
                             val fkey = entry.key()
+                            val isOpen = openKey == fkey
                             item(span = { GridItemSpan(maxLineSpan) }, key = "f$index") {
-                                FolderSection(
-                                    folder = entry,
-                                    appMap = appMap,
-                                    isExpanded = expanded[fkey] ?: true,
-                                    onToggle = { expanded[fkey] = !(expanded[fkey] ?: true) },
-                                    onLaunch = onLaunch,
-                                )
+                                val dim by animateFloatAsState(if (dimActive && !isOpen) 0.35f else 1f, label = "dim")
+                                Box(Modifier.alpha(dim)) {
+                                    FolderSection(
+                                        folder = entry,
+                                        appMap = appMap,
+                                        panel = panel,
+                                        isExpanded = isOpen,
+                                        onToggle = { openKey = if (isOpen) null else fkey },
+                                        onLaunch = onLaunch,
+                                    )
+                                }
                             }
                         } else {
                             item(key = "a$index") {
+                                val dim by animateFloatAsState(if (dimActive) 0.35f else 1f, label = "dim")
                                 val app = entry.packageName?.let { appMap[it] }
                                 if (app != null) {
-                                    AppTile(
-                                        label = app.label,
-                                        bitmap = remember(app.packageName) { app.icon.toBitmap(144, 144).asImageBitmap() },
-                                    ) { onLaunch(app.packageName) }
+                                    Box(Modifier.alpha(dim)) {
+                                        AppTile(
+                                            label = app.label,
+                                            bitmap = remember(app.packageName) { app.icon.toBitmap(144, 144).asImageBitmap() },
+                                        ) { onLaunch(app.packageName) }
+                                    }
                                 } else {
                                     Box(Modifier.size(1.dp))
                                 }
@@ -229,21 +240,24 @@ private fun PanelCard(
 private fun FolderSection(
     folder: SidebarItem,
     appMap: Map<String, AppInfo>,
+    panel: PanelConfig,
     isExpanded: Boolean,
     onToggle: () -> Unit,
     onLaunch: (String) -> Unit,
 ) {
-    // The whole folder is one floating card (drop shadow), with the dropdown
-    // title INSIDE it at the top and the member apps below — like the image.
-    // Same background as the panel (transparent so the panel shows through);
-    // the border + soft shadow make it read as lifted above the panel.
+    // Nested glass: a closer layer than the panel — a more opaque tint + a
+    // brighter edge + a stronger shadow give it depth. (A separate backdrop
+    // blur per element isn't possible with a single window blur, so the extra
+    // opacity carries the "closer glass" feel.)
+    val folderTint = panelColor(panel.brightness)
+        .copy(alpha = (panel.opacity + 0.28f).coerceIn(0.4f, 1f))
     Surface(
         modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp),
         shape = RoundedCornerShape(20.dp),
-        color = Color.Transparent,
-        shadowElevation = 10.dp,
+        color = folderTint,
+        shadowElevation = 14.dp,
         tonalElevation = 0.dp,
-        border = BorderStroke(1.5.dp, Color.White.copy(alpha = 0.28f)),
+        border = BorderStroke(1.5.dp, Color.White.copy(alpha = 0.4f)),
     ) {
         Column(Modifier.padding(horizontal = 10.dp, vertical = 6.dp)) {
             Row(
@@ -275,7 +289,7 @@ private fun FolderSection(
                     verticalArrangement = Arrangement.spacedBy(6.dp),
                 ) {
                     val members = folder.packages.mapNotNull { appMap[it] }
-                    members.chunked(COLUMNS).forEach { rowApps ->
+                    members.chunked(FOLDER_COLUMNS).forEach { rowApps ->
                         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(2.dp)) {
                             rowApps.forEach { app ->
                                 Box(Modifier.weight(1f)) {
@@ -285,7 +299,7 @@ private fun FolderSection(
                                     ) { onLaunch(app.packageName) }
                                 }
                             }
-                            repeat(COLUMNS - rowApps.size) { Box(Modifier.weight(1f)) }
+                            repeat(FOLDER_COLUMNS - rowApps.size) { Box(Modifier.weight(1f)) }
                         }
                     }
                 }
