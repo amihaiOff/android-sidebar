@@ -25,6 +25,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Dashboard
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.DragHandle
 import androidx.compose.material.icons.filled.Edit
@@ -81,7 +82,7 @@ private sealed interface Screen {
     data object Home : Screen
     data object AddApps : Screen
     data object GlassLab : Screen
-    data class FolderEdit(val index: Int?) : Screen
+    data class FolderEdit(val index: Int?, val isGroup: Boolean = false) : Screen
 }
 
 class MainActivity : ComponentActivity() {
@@ -125,7 +126,8 @@ private fun SidebarRoot() {
                     if (on) SidebarService.start(context) else SidebarService.stop(context)
                 },
                 onAddApps = { screen = Screen.AddApps },
-                onNewFolder = { screen = Screen.FolderEdit(null) },
+                onNewFolder = { screen = Screen.FolderEdit(null, isGroup = false) },
+                onNewGroup = { screen = Screen.FolderEdit(null, isGroup = true) },
                 onOpenGlassLab = { screen = Screen.GlassLab },
                 onEditFolder = { index -> screen = Screen.FolderEdit(index) },
                 onRemoveItem = { index ->
@@ -153,9 +155,11 @@ private fun SidebarRoot() {
 
             is Screen.FolderEdit -> {
                 val idx = s.index
+                val existingItem = idx?.let { config.items.getOrNull(it) }
                 FolderEditScreen(
                     modifier = mod,
-                    existing = idx?.let { config.items.getOrNull(it) },
+                    existing = existingItem,
+                    asGroup = existingItem?.type == ItemType.GROUP || (idx == null && s.isGroup),
                     onSave = { folder ->
                         val items = config.items.toMutableList()
                         if (idx == null) items.add(folder) else items[idx] = folder
@@ -183,6 +187,7 @@ private fun HomeScreen(
     onRunningChange: (Boolean) -> Unit,
     onAddApps: () -> Unit,
     onNewFolder: () -> Unit,
+    onNewGroup: () -> Unit,
     onOpenGlassLab: () -> Unit,
     onEditFolder: (Int) -> Unit,
     onRemoveItem: (Int) -> Unit,
@@ -315,8 +320,9 @@ private fun HomeScreen(
                     )
                 }
                 Spacer(Modifier.height(12.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Button(onClick = onAddApps) { Text("Add apps") }
+                    OutlinedButton(onClick = onNewGroup) { Text("New group") }
                     OutlinedButton(onClick = onNewFolder) { Text("New folder") }
                 }
             }
@@ -510,17 +516,18 @@ private fun ReorderableItems(
                                 )
                             },
                     )
-                    if (item.type == ItemType.FOLDER) {
+                    if (item.type == ItemType.FOLDER || item.type == ItemType.GROUP) {
                         val glyph = item.emoji?.takeIf { it.isNotBlank() }
-                        if (glyph != null) {
-                            Box(Modifier.size(36.dp), contentAlignment = Alignment.Center) { Text(glyph, fontSize = 24.sp) }
-                        } else {
-                            Icon(Icons.Filled.Folder, contentDescription = null, modifier = Modifier.size(36.dp), tint = MaterialTheme.colorScheme.primary)
+                        when {
+                            glyph != null -> Box(Modifier.size(36.dp), contentAlignment = Alignment.Center) { Text(glyph, fontSize = 24.sp) }
+                            item.type == ItemType.GROUP -> Icon(Icons.Filled.Dashboard, contentDescription = null, modifier = Modifier.size(36.dp), tint = MaterialTheme.colorScheme.primary)
+                            else -> Icon(Icons.Filled.Folder, contentDescription = null, modifier = Modifier.size(36.dp), tint = MaterialTheme.colorScheme.primary)
                         }
                         Spacer(Modifier.width(12.dp))
                         Column(Modifier.weight(1f)) {
-                            Text(item.name ?: "Folder", style = MaterialTheme.typography.bodyLarge)
-                            Text("${item.packages.size} apps", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Text(item.name ?: if (item.type == ItemType.GROUP) "Group" else "Folder", style = MaterialTheme.typography.bodyLarge)
+                            val kind = if (item.type == ItemType.GROUP) "group" else "folder"
+                            Text("${item.packages.size} apps · $kind", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                         IconButton(onClick = { onEditFolder(currentIndex) }) { Icon(Icons.Filled.Edit, contentDescription = "Edit") }
                     } else {
@@ -540,6 +547,7 @@ private fun ReorderableItems(
 private fun itemKey(item: SidebarItem): String = when (item.type) {
     ItemType.APP -> "app:${item.packageName}"
     ItemType.FOLDER -> "folder:${item.name}:${item.packages.joinToString(",")}"
+    ItemType.GROUP -> "group:${item.name}:${item.packages.joinToString(",")}"
 }
 
 @Composable

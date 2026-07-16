@@ -41,6 +41,12 @@ running handle re-arms on each change):
   (the emoji is the icon); tapping one **expands its apps below the line**, with
   the expansion animating out from the tapped circle. Opening a folder dims the
   rest of the panel to focus on it. Edit/delete folders from settings.
+- **Groups** — **New group**: a titled section of apps shown inline in the main
+  grid (always visible, unlike folders).
+- **Recent apps** — the bottom of the panel has a divider and the last 4 apps
+  you launched from the sidebar.
+- **Settings gear** — a gear at the bottom-left of the panel opens the app's
+  settings.
 - **Reorder** — long-press the drag handle on any item in the settings list to
   drag it up or down; the new order is what the panel shows.
 - **Panel & glass (the lab)** — all panel + folder look controls in one screen

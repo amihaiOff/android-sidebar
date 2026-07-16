@@ -15,6 +15,8 @@ object Settings {
     private const val PREFS = "sidebar_prefs"
     private const val KEY_ENABLED = "enabled"
     private const val KEY_CONFIG = "config_json"
+    private const val KEY_RECENTS = "recents"
+    private const val MAX_RECENTS = 8
 
     private val json = Json {
         ignoreUnknownKeys = true
@@ -48,5 +50,14 @@ object Settings {
 
     fun setConfig(context: Context, config: SidebarConfig) {
         prefs(context).edit().putString(KEY_CONFIG, json.encodeToString(config)).apply()
+    }
+
+    /** Recently launched packages, most-recent first. */
+    fun recents(context: Context): List<String> =
+        prefs(context).getString(KEY_RECENTS, "").orEmpty().split(",").filter { it.isNotBlank() }
+
+    fun addRecent(context: Context, packageName: String) {
+        val updated = (listOf(packageName) + recents(context).filter { it != packageName }).take(MAX_RECENTS)
+        prefs(context).edit().putString(KEY_RECENTS, updated.joinToString(",")).apply()
     }
 }

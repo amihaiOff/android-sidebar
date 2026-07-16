@@ -163,8 +163,8 @@ internal fun AddAppsScreen(
             onTrailing = {
                 val selectedSet = selected.toSet()
                 val existingSet = existingAppPkgs.toSet()
-                // Keep folders and still-selected existing apps in place; append new apps.
-                val kept = config.items.filter { it.type == ItemType.FOLDER || it.packageName in selectedSet }
+                // Keep folders/groups and still-selected existing apps; append new apps.
+                val kept = config.items.filter { it.type != ItemType.APP || it.packageName in selectedSet }
                 val added = selected.filter { it !in existingSet }.map { SidebarItem.app(it) }
                 onDone(kept + added)
             },
@@ -186,6 +186,7 @@ internal fun AddAppsScreen(
 internal fun FolderEditScreen(
     modifier: Modifier,
     existing: SidebarItem?,
+    asGroup: Boolean,
     onSave: (SidebarItem) -> Unit,
     onDelete: (() -> Unit)?,
     onCancel: () -> Unit,
@@ -194,34 +195,42 @@ internal fun FolderEditScreen(
     var name by remember { mutableStateOf(existing?.name ?: "") }
     var emoji by remember { mutableStateOf(existing?.emoji ?: "") }
     val selected = remember { mutableStateListOf<String>().apply { existing?.packages?.let { addAll(it) } } }
+    val noun = if (asGroup) "group" else "folder"
 
     Box(modifier.fillMaxSize()) {
         SubScreen(
-            title = if (existing == null) "New folder" else "Edit folder",
+            title = (if (existing == null) "New " else "Edit ") + noun,
             trailingLabel = "Save",
             trailingEnabled = all != null && name.isNotBlank() && selected.isNotEmpty(),
             onBack = onCancel,
-            onTrailing = { onSave(SidebarItem.folder(name.trim(), selected.toList(), emoji.trim().ifBlank { null })) },
+            onTrailing = {
+                onSave(
+                    if (asGroup) SidebarItem.group(name.trim(), selected.toList())
+                    else SidebarItem.folder(name.trim(), selected.toList(), emoji.trim().ifBlank { null })
+                )
+            },
         ) {
             Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedTextField(
-                    value = emoji,
-                    onValueChange = { emoji = it.take(4) },
-                    label = { Text("Emoji") },
-                    singleLine = true,
-                    modifier = Modifier.width(96.dp),
-                )
+                if (!asGroup) {
+                    OutlinedTextField(
+                        value = emoji,
+                        onValueChange = { emoji = it.take(4) },
+                        label = { Text("Emoji") },
+                        singleLine = true,
+                        modifier = Modifier.width(96.dp),
+                    )
+                }
                 OutlinedTextField(
                     value = name,
                     onValueChange = { name = it },
-                    label = { Text("Folder name") },
+                    label = { Text(if (asGroup) "Group title" else "Folder name") },
                     singleLine = true,
                     modifier = Modifier.weight(1f),
                 )
             }
             if (onDelete != null) {
                 TextButton(onClick = onDelete, modifier = Modifier.padding(start = 4.dp)) {
-                    Text("Delete folder", color = MaterialTheme.colorScheme.error)
+                    Text("Delete $noun", color = MaterialTheme.colorScheme.error)
                 }
             }
             if (all == null) {

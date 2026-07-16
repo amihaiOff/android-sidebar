@@ -39,7 +39,11 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -64,12 +68,15 @@ import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.layout.positionInParent
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.graphics.drawable.toBitmap
 import com.personal.sidebar.Edge
+import com.personal.sidebar.MainActivity
+import com.personal.sidebar.Settings
 import com.personal.sidebar.apps.AppInfo
 import com.personal.sidebar.apps.AppRepository
 import com.personal.sidebar.model.FolderConfig
@@ -149,6 +156,20 @@ fun SidebarPanel(
 
     var appMap by remember { mutableStateOf<Map<String, AppInfo>?>(null) }
     LaunchedEffect(Unit) { appMap = AppRepository.map(context) }
+    val recents = remember { Settings.recents(context) }
+
+    val onLaunch: (String) -> Unit = { pkg ->
+        Settings.addRecent(context, pkg)
+        AppRepository.launch(context, pkg)
+        dismiss()
+    }
+    val onOpenSettings: () -> Unit = {
+        context.startActivity(
+            android.content.Intent(context, MainActivity::class.java)
+                .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+        )
+        dismiss()
+    }
 
     // The window is already sized to the panel, so the card fills it and slides
     // in from the active edge. No full-screen scrim — the background stays
@@ -170,10 +191,10 @@ fun SidebarPanel(
                 appMap = appMap,
                 panel = panel,
                 folder = folder,
-            ) { pkg ->
-                AppRepository.launch(context, pkg)
-                dismiss()
-            }
+                recents = recents,
+                onLaunch = onLaunch,
+                onOpenSettings = onOpenSettings,
+            )
         }
     }
 }
@@ -185,7 +206,9 @@ private fun PanelCard(
     appMap: Map<String, AppInfo>?,
     panel: PanelConfig,
     folder: FolderConfig,
+    recents: List<String>,
     onLaunch: (String) -> Unit,
+    onOpenSettings: () -> Unit,
 ) {
     val corner = panel.cornerDp.dp
     val shape = if (edge == Edge.LEFT) {
@@ -226,26 +249,62 @@ private fun PanelCard(
                     end = 14.dp,
                 )
         ) {
-            when {
-                appMap == null -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    CircularProgressIndicator(color = LabelPrimary)
-                }
-                items.isEmpty() -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    Text(
-                        "No apps yet.\nAdd some in Sidebar settings.",
-                        textAlign = TextAlign.Center,
-                        color = LabelSecondary,
+            Box(Modifier.weight(1f).fillMaxWidth()) {
+                when {
+                    appMap == null -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        CircularProgressIndicator(color = LabelPrimary)
+                    }
+                    items.isEmpty() -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        Text(
+                            "No apps yet.\nAdd some in Sidebar settings.",
+                            textAlign = TextAlign.Center,
+                            color = LabelSecondary,
+                        )
+                    }
+                    else -> PanelContent(
+                        apps = items.filter { it.type == ItemType.APP },
+                        groups = items.filter { it.type == ItemType.GROUP },
+                        folders = items.filter { it.type == ItemType.FOLDER },
+                        appMap = appMap,
+                        style = folder,
+                        onLaunch = onLaunch,
                     )
                 }
-                else -> PanelContent(
-                    apps = items.filter { it.type == ItemType.APP },
-                    folders = items.filter { it.type == ItemType.FOLDER },
-                    appMap = appMap,
-                    style = folder,
-                    onLaunch = onLaunch,
-                )
+            }
+            // Bottom bar: settings gear + recent apps.
+            if (appMap != null) {
+                BottomBar(recents = recents, appMap = appMap, onLaunch = onLaunch, onOpenSettings = onOpenSettings)
             }
         }
+    }
+}
+
+@Composable
+private fun BottomBar(
+    recents: List<String>,
+    appMap: Map<String, AppInfo>,
+    onLaunch: (String) -> Unit,
+    onOpenSettings: () -> Unit,
+) {
+    Box(Modifier.fillMaxWidth().padding(top = 8.dp).height(1.dp).background(Color.White.copy(alpha = 0.15f)))
+    Row(
+        Modifier.fillMaxWidth().padding(top = 6.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(2.dp),
+    ) {
+        IconButton(onClick = onOpenSettings) {
+            Icon(Icons.Filled.Settings, contentDescription = "Settings", tint = LabelSecondary)
+        }
+        val recentApps = recents.mapNotNull { appMap[it] }.take(4)
+        recentApps.forEach { app ->
+            Box(Modifier.weight(1f)) {
+                AppTile(
+                    label = app.label,
+                    bitmap = remember(app.packageName) { app.icon.toBitmap(144, 144).asImageBitmap() },
+                ) { onLaunch(app.packageName) }
+            }
+        }
+        repeat(4 - recentApps.size) { Box(Modifier.weight(1f)) }
     }
 }
 
@@ -253,6 +312,7 @@ private fun PanelCard(
 @Composable
 private fun PanelContent(
     apps: List<SidebarItem>,
+    groups: List<SidebarItem>,
     folders: List<SidebarItem>,
     appMap: Map<String, AppInfo>,
     style: FolderConfig,
@@ -274,6 +334,22 @@ private fun PanelContent(
         if (apps.isNotEmpty()) {
             val dim by animateFloatAsState(if (dimActive) 0.35f else 1f, label = "appsDim")
             AppGrid(apps, COLUMNS, appMap, Modifier.alpha(dim), onLaunch)
+        }
+
+        // Titled groups (inline sections in the main grid).
+        groups.forEach { g ->
+            val dim by animateFloatAsState(if (dimActive) 0.35f else 1f, label = "groupDim")
+            Column(Modifier.alpha(dim)) {
+                Spacer(Modifier.height(12.dp))
+                Text(
+                    text = g.name ?: "",
+                    color = LabelPrimary,
+                    fontWeight = FontWeight.SemiBold,
+                    fontSize = 14.sp,
+                    modifier = Modifier.padding(start = 4.dp, bottom = 6.dp),
+                )
+                AppGrid(g.packages.map { SidebarItem.app(it) }, COLUMNS, appMap, Modifier, onLaunch)
+            }
         }
 
         if (folders.isNotEmpty()) {
@@ -468,4 +544,5 @@ private fun AppTile(label: String, bitmap: ImageBitmap, onClick: () -> Unit) {
 private fun SidebarItem.key(): String = when (type) {
     ItemType.APP -> "app:${packageName}"
     ItemType.FOLDER -> "folder:${name}:${packages.joinToString(",")}"
+    ItemType.GROUP -> "group:${name}:${packages.joinToString(",")}"
 }

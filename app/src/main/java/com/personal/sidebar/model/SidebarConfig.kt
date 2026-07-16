@@ -3,9 +3,12 @@ package com.personal.sidebar.model
 import com.personal.sidebar.Edge
 import kotlinx.serialization.Serializable
 
-/** An entry shown in the panel: either a single app or a folder of apps. */
+/**
+ * An entry shown in the panel: a single app, a folder (emoji circle that expands),
+ * or a group (a titled section of apps shown inline in the main grid).
+ */
 @Serializable
-enum class ItemType { APP, FOLDER }
+enum class ItemType { APP, FOLDER, GROUP }
 
 @Serializable
 data class SidebarItem(
@@ -23,6 +26,8 @@ data class SidebarItem(
         fun app(pkg: String) = SidebarItem(ItemType.APP, packageName = pkg)
         fun folder(name: String, packages: List<String>, emoji: String? = null) =
             SidebarItem(ItemType.FOLDER, name = name, emoji = emoji, packages = packages)
+        fun group(name: String, packages: List<String>) =
+            SidebarItem(ItemType.GROUP, name = name, packages = packages)
     }
 }
 
