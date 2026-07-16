@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -43,7 +44,6 @@ import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInParent
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontFamily
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlin.math.roundToInt
@@ -119,10 +119,6 @@ internal fun GlassLabScreen(
 
 @Composable
 private fun GlassPreview(blur: Float, tintAlpha: Float, stroke: Float) {
-    val colors = listOf(
-        Color(0xFF7C4DFF), Color(0xFF2196F3), Color(0xFF00E5FF),
-        Color(0xFF00E676), Color(0xFFFFEB3B), Color(0xFFFF5252),
-    )
     BoxWithConstraints(
         Modifier
             .fillMaxWidth()
@@ -132,48 +128,85 @@ private fun GlassPreview(blur: Float, tintAlpha: Float, stroke: Float) {
         val density = LocalDensity.current
         val boxWpx = with(density) { maxWidth.toPx() }
         val boxHpx = with(density) { maxHeight.toPx() }
-        val shape = RoundedCornerShape(24.dp)
+        val shape = RoundedCornerShape(topStart = 22.dp, bottomStart = 22.dp)
 
-        // Sharp colourful backdrop spanning the whole preview.
-        Box(
-            Modifier.matchParentSize().background(
-                Brush.linearGradient(colors, start = Offset(0f, 0f), end = Offset(boxWpx, boxHpx))
-            )
-        )
+        // A muted "wallpaper" (soft colour blobs on a dark gradient) — enough
+        // contrast for the frost to read, without the neon look.
+        Box(Modifier.matchParentSize().drawBehind { drawScene(Offset.Zero, boxWpx, boxHpx) })
 
-        // The glass card. We know its position within this box, so we draw the
-        // SAME gradient inside it — shifted to line up with the backdrop — and
-        // blur it. That gives a true frosted-glass slice of what's behind.
+        // The glass rendered as a side panel: a blurred slice of the wallpaper
+        // behind it, a white frosting tint, the glass edge, and placeholder app
+        // tiles — i.e. what the real panel looks like with these values.
         var pos by remember { mutableStateOf(Offset.Zero) }
         Box(
             modifier = Modifier
-                .align(Alignment.Center)
-                .fillMaxWidth(0.7f)
-                .height(150.dp)
+                .align(Alignment.CenterEnd)
+                .fillMaxWidth(0.6f)
+                .fillMaxSize()
                 .onGloballyPositioned { pos = it.positionInParent() }
                 .clip(shape)
-                .border(stroke.dp, Color.White.copy(alpha = 0.35f), shape),
-            contentAlignment = Alignment.Center,
+                .border(stroke.dp, Color.White.copy(alpha = 0.3f), shape),
         ) {
             Box(
                 Modifier
                     .matchParentSize()
                     .then(if (blur > 0f) Modifier.blur(blur.dp) else Modifier)
-                    .drawBehind {
-                        drawRect(
-                            brush = Brush.linearGradient(
-                                colors,
-                                start = Offset(-pos.x, -pos.y),
-                                end = Offset(boxWpx - pos.x, boxHpx - pos.y),
-                            ),
-                            size = size,
-                        )
-                    }
+                    .drawBehind { drawScene(pos, boxWpx, boxHpx) }
             )
-            // Frosting tint — pure white at low alpha.
+            // Frosting tint — pure white at low alpha (the "Apply" mapping).
             Box(Modifier.matchParentSize().background(Color.White.copy(alpha = tintAlpha)))
-            Text("Glass", color = Color.White, fontWeight = FontWeight.SemiBold)
+            // Placeholder app grid so it reads as the actual panel.
+            Column(
+                Modifier.fillMaxSize().padding(14.dp),
+                verticalArrangement = Arrangement.spacedBy(14.dp),
+            ) {
+                repeat(3) {
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        repeat(3) { AppPlaceholder() }
+                    }
+                }
+            }
         }
+    }
+}
+
+/** Draws the muted wallpaper. [origin] is the absolute position of this
+ *  DrawScope's (0,0), so the same scene lines up between the backdrop and the
+ *  blurred slice inside the glass. */
+private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawScene(
+    origin: Offset,
+    wpx: Float,
+    hpx: Float,
+) {
+    drawRect(
+        brush = Brush.linearGradient(
+            listOf(Color(0xFF1F2933), Color(0xFF323D46), Color(0xFF29343C)),
+            start = Offset(0f, 0f) - origin,
+            end = Offset(wpx, hpx) - origin,
+        ),
+        size = size,
+    )
+    drawCircle(Color(0x554FC3F7), radius = 70.dp.toPx(), center = Offset(0.22f * wpx, 0.30f * hpx) - origin)
+    drawCircle(Color(0x55FF8A65), radius = 92.dp.toPx(), center = Offset(0.74f * wpx, 0.38f * hpx) - origin)
+    drawCircle(Color(0x5581C784), radius = 80.dp.toPx(), center = Offset(0.48f * wpx, 0.84f * hpx) - origin)
+}
+
+@Composable
+private fun AppPlaceholder() {
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Box(
+            Modifier
+                .size(34.dp)
+                .clip(RoundedCornerShape(9.dp))
+                .background(Color.White.copy(alpha = 0.28f))
+        )
+        Spacer(Modifier.height(5.dp))
+        Box(
+            Modifier
+                .size(width = 26.dp, height = 4.dp)
+                .clip(RoundedCornerShape(2.dp))
+                .background(Color.White.copy(alpha = 0.4f))
+        )
     }
 }
 
