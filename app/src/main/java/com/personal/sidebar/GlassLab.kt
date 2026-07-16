@@ -25,6 +25,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -112,6 +113,7 @@ internal fun GlassLabScreen(
         LabSlider("Brightness", p.brightness, 0f..1f, "${(p.brightness * 100).roundToInt()}%") { setP(p.copy(brightness = it)) }
         LabSlider("Edge stroke", p.edgeDp, 0f..4f, "${p.edgeDp.roundToInt()} dp") { setP(p.copy(edgeDp = it)) }
         LabSlider("Corner radius", p.cornerDp.toFloat(), 0f..48f, "${p.cornerDp} dp") { setP(p.copy(cornerDp = it.roundToInt())) }
+        ToggleRow("Show app names", p.showLabels) { setP(p.copy(showLabels = it)) }
         Text("Background", style = MaterialTheme.typography.labelLarge, modifier = Modifier.padding(top = 8.dp))
         Row(Modifier.padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             LAB_SWATCHES.forEach { rgb ->
@@ -193,7 +195,7 @@ private fun GlassPreview(p: PanelConfig, f: FolderConfig) {
                 Spacer(Modifier.height(18.dp))
                 // Loose apps row.
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    repeat(4) { AppPlaceholder() }
+                    repeat(4) { AppPlaceholder(showLabel = p.showLabels) }
                 }
             }
         }
@@ -252,7 +254,7 @@ private fun DrawScope.drawScene(origin: Offset, wpx: Float, hpx: Float) {
 }
 
 @Composable
-private fun AppPlaceholder() {
+private fun AppPlaceholder(showLabel: Boolean = true) {
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
         Box(
             Modifier
@@ -260,13 +262,27 @@ private fun AppPlaceholder() {
                 .clip(RoundedCornerShape(8.dp))
                 .background(Color.White.copy(alpha = 0.3f))
         )
-        Spacer(Modifier.height(5.dp))
-        Box(
-            Modifier
-                .size(width = 24.dp, height = 4.dp)
-                .clip(RoundedCornerShape(2.dp))
-                .background(Color.White.copy(alpha = 0.45f))
-        )
+        if (showLabel) {
+            Spacer(Modifier.height(5.dp))
+            Box(
+                Modifier
+                    .size(width = 24.dp, height = 4.dp)
+                    .clip(RoundedCornerShape(2.dp))
+                    .background(Color.White.copy(alpha = 0.45f))
+            )
+        }
+    }
+}
+
+@Composable
+private fun ToggleRow(label: String, checked: Boolean, onChange: (Boolean) -> Unit) {
+    Row(
+        Modifier.fillMaxWidth().padding(top = 6.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(label, style = MaterialTheme.typography.labelLarge)
+        Switch(checked = checked, onCheckedChange = onChange)
     }
 }
 

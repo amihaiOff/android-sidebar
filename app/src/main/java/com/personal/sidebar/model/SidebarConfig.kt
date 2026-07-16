@@ -4,26 +4,30 @@ import com.personal.sidebar.Edge
 import kotlinx.serialization.Serializable
 
 /**
- * An entry shown in the panel: a single app, a folder (emoji circle that expands),
- * or a group (a titled section of apps shown inline in the main grid).
+ * An entry shown in the panel: a single app, a web link/PWA (opens a URL), a
+ * folder (emoji circle that expands), or a group (a titled inline section).
  */
 @Serializable
-enum class ItemType { APP, FOLDER, GROUP }
+enum class ItemType { APP, LINK, FOLDER, GROUP }
 
 @Serializable
 data class SidebarItem(
     val type: ItemType,
     /** Package name for [ItemType.APP]. */
     val packageName: String? = null,
-    /** Display name for [ItemType.FOLDER]. */
+    /** Display name for folders/groups/links. */
     val name: String? = null,
-    /** Emoji shown in the folder's circle (its "name"). */
+    /** Emoji shown in a folder circle or a link tile. */
     val emoji: String? = null,
-    /** Member package names for [ItemType.FOLDER]. */
+    /** URL opened for [ItemType.LINK] (launches a PWA/WebAPK if installed). */
+    val url: String? = null,
+    /** Member package names for [ItemType.FOLDER] / [ItemType.GROUP]. */
     val packages: List<String> = emptyList(),
 ) {
     companion object {
         fun app(pkg: String) = SidebarItem(ItemType.APP, packageName = pkg)
+        fun link(name: String, url: String, emoji: String? = null) =
+            SidebarItem(ItemType.LINK, name = name, emoji = emoji, url = url)
         fun folder(name: String, packages: List<String>, emoji: String? = null) =
             SidebarItem(ItemType.FOLDER, name = name, emoji = emoji, packages = packages)
         fun group(name: String, packages: List<String>) =
@@ -66,6 +70,8 @@ data class PanelConfig(
     val edgeDp: Float = 1f,
     /** Corner radius (dp) of the panel's inner edge. */
     val cornerDp: Int = 28,
+    /** Show app/link names under their icons in the panel. */
+    val showLabels: Boolean = true,
 )
 
 /** Appearance of a folder card (a "nested glass" layer inside the panel). */

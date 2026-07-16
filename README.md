@@ -43,6 +43,13 @@ running handle re-arms on each change):
   rest of the panel to focus on it. Edit/delete folders from settings.
 - **Groups** — **New group**: a titled section of apps shown inline in the main
   grid (always visible, unlike folders).
+- **Links / PWAs** — **Add link / PWA**: a tile that opens a URL. Give it a
+  label, an optional **emoji** icon (a globe is used otherwise) and the URL. If
+  you've installed the site as a PWA (added it to your home screen as a WebAPK),
+  Android routes the tap to the installed app; otherwise it opens in your
+  browser. This lets you pin something that isn't a real installed app.
+- **Icon-only mode** — a **Show app names** toggle in the lab hides the labels
+  under every tile in the main panel, leaving just the icons.
 - **Recent apps** — the bottom of the panel shows the last 4 recent apps. With
   the **Usage access** permission granted these are phone-wide (whatever you
   used most recently on the device); otherwise they fall back to the apps most

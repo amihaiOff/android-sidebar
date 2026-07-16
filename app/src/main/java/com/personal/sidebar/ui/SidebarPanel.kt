@@ -40,6 +40,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Language
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
@@ -181,6 +182,17 @@ fun SidebarPanel(
         )
         dismiss()
     }
+    // Open a web link / PWA. If a PWA (WebAPK) is installed for the URL, Android
+    // routes ACTION_VIEW to it; otherwise it opens in the browser.
+    val onOpenLink: (String) -> Unit = { url ->
+        runCatching {
+            context.startActivity(
+                android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(url))
+                    .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+            )
+        }
+        dismiss()
+    }
 
     // The window is already sized to the panel, so the card fills it and slides
     // in from the active edge. No full-screen scrim — the background stays
@@ -204,6 +216,7 @@ fun SidebarPanel(
                 folder = folder,
                 recents = recents,
                 onLaunch = onLaunch,
+                onOpenLink = onOpenLink,
                 onOpenSettings = onOpenSettings,
             )
         }
@@ -219,6 +232,7 @@ private fun PanelCard(
     folder: FolderConfig,
     recents: List<String>,
     onLaunch: (String) -> Unit,
+    onOpenLink: (String) -> Unit,
     onOpenSettings: () -> Unit,
 ) {
     val corner = panel.cornerDp.dp
@@ -273,12 +287,14 @@ private fun PanelCard(
                         )
                     }
                     else -> PanelContent(
-                        apps = items.filter { it.type == ItemType.APP },
+                        loose = items.filter { it.type == ItemType.APP || it.type == ItemType.LINK },
                         groups = items.filter { it.type == ItemType.GROUP },
                         folders = items.filter { it.type == ItemType.FOLDER },
                         appMap = appMap,
                         style = folder,
+                        showLabels = panel.showLabels,
                         onLaunch = onLaunch,
+                        onOpenLink = onOpenLink,
                     )
                 }
             }
@@ -323,12 +339,14 @@ private fun BottomBar(
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun PanelContent(
-    apps: List<SidebarItem>,
+    loose: List<SidebarItem>,
     groups: List<SidebarItem>,
     folders: List<SidebarItem>,
     appMap: Map<String, AppInfo>,
     style: FolderConfig,
+    showLabels: Boolean,
     onLaunch: (String) -> Unit,
+    onOpenLink: (String) -> Unit,
 ) {
     var openKey by remember { mutableStateOf<String?>(null) }
     var pivotX by remember { mutableStateOf(0.5f) }
@@ -382,16 +400,16 @@ private fun PanelContent(
                     shrinkVertically(shrinkTowards = Alignment.Top),
             ) {
                 Box(Modifier.padding(top = 8.dp)) {
-                    shown?.let { FolderExpanded(it, style, appMap, onLaunch) }
+                    shown?.let { FolderExpanded(it, style, appMap, showLabels, onLaunch) }
                 }
             }
         }
 
-        // Loose apps grid.
-        if (apps.isNotEmpty()) {
+        // Loose apps + links grid.
+        if (loose.isNotEmpty()) {
             if (folders.isNotEmpty()) Spacer(Modifier.height(28.dp))
             val dim by animateFloatAsState(if (dimActive) 0.35f else 1f, label = "appsDim")
-            AppGrid(apps, COLUMNS, appMap, Modifier.alpha(dim), onLaunch)
+            AppGrid(loose, COLUMNS, appMap, showLabels, Modifier.alpha(dim), onLaunch, onOpenLink)
         }
 
         // Titled groups (inline sections in the main grid).
@@ -408,7 +426,7 @@ private fun PanelContent(
                         modifier = Modifier.padding(start = 4.dp, bottom = 6.dp),
                     )
                 }
-                AppGrid(g.packages.map { SidebarItem.app(it) }, COLUMNS, appMap, Modifier, onLaunch)
+                AppGrid(g.packages.map { SidebarItem.app(it) }, COLUMNS, appMap, showLabels, Modifier, onLaunch)
             }
         }
     }
@@ -461,6 +479,7 @@ private fun FolderExpanded(
     folder: SidebarItem,
     style: FolderConfig,
     appMap: Map<String, AppInfo>,
+    showLabels: Boolean,
     onLaunch: (String) -> Unit,
 ) {
     val tint = panelColor(style.brightness).copy(alpha = style.opacity.coerceIn(0f, 1f))
@@ -478,9 +497,10 @@ private fun FolderExpanded(
     ) {
         Column(Modifier.padding(10.dp)) {
             AppGrid(
-                apps = folder.packages.map { SidebarItem.app(it) },
+                items = folder.packages.map { SidebarItem.app(it) },
                 cols = style.columns.coerceIn(2, 5),
                 appMap = appMap,
+                showLabels = showLabels,
                 modifier = Modifier,
                 onLaunch = onLaunch,
             )
@@ -488,26 +508,35 @@ private fun FolderExpanded(
     }
 }
 
-/** A non-lazy icon grid used for both loose apps and folder contents. */
+/** A non-lazy grid of apps and/or links (used for loose items, groups, folders). */
 @Composable
 private fun AppGrid(
-    apps: List<SidebarItem>,
+    items: List<SidebarItem>,
     cols: Int,
     appMap: Map<String, AppInfo>,
+    showLabels: Boolean,
     modifier: Modifier,
     onLaunch: (String) -> Unit,
+    onOpenLink: (String) -> Unit = {},
 ) {
     Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        apps.chunked(cols).forEach { rowItems ->
+        items.chunked(cols).forEach { rowItems ->
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(2.dp)) {
                 rowItems.forEach { item ->
                     Box(Modifier.weight(1f)) {
-                        val app = item.packageName?.let { appMap[it] }
-                        if (app != null) {
-                            AppTile(
-                                label = app.label,
-                                bitmap = remember(app.packageName) { app.icon.toBitmap(144, 144).asImageBitmap() },
-                            ) { onLaunch(app.packageName) }
+                        if (item.type == ItemType.LINK) {
+                            LinkTile(item.name.orEmpty(), item.emoji, showLabels) {
+                                item.url?.let(onOpenLink)
+                            }
+                        } else {
+                            val app = item.packageName?.let { appMap[it] }
+                            if (app != null) {
+                                AppTile(
+                                    label = app.label,
+                                    bitmap = remember(app.packageName) { app.icon.toBitmap(144, 144).asImageBitmap() },
+                                    showLabel = showLabels,
+                                ) { onLaunch(app.packageName) }
+                            }
                         }
                     }
                 }
@@ -518,7 +547,7 @@ private fun AppGrid(
 }
 
 @Composable
-private fun AppTile(label: String, bitmap: ImageBitmap, onClick: () -> Unit) {
+private fun Tile(label: String, showLabel: Boolean, onClick: () -> Unit, icon: @Composable () -> Unit) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -527,26 +556,48 @@ private fun AppTile(label: String, bitmap: ImageBitmap, onClick: () -> Unit) {
             .padding(vertical = 8.dp, horizontal = 2.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Image(
-            bitmap = bitmap,
-            contentDescription = label,
-            modifier = Modifier.size(50.dp).clip(RoundedCornerShape(12.dp)),
-        )
-        Text(
-            text = label,
-            color = LabelPrimary,
-            fontSize = 11.sp,
-            textAlign = TextAlign.Center,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.padding(top = 5.dp),
-        )
+        Box(Modifier.size(50.dp), contentAlignment = Alignment.Center) { icon() }
+        if (showLabel) {
+            Text(
+                text = label,
+                color = LabelPrimary,
+                fontSize = 11.sp,
+                textAlign = TextAlign.Center,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.padding(top = 5.dp),
+            )
+        }
+    }
+}
+
+@Composable
+private fun AppTile(label: String, bitmap: ImageBitmap, showLabel: Boolean = true, onClick: () -> Unit) {
+    Tile(label, showLabel, onClick) {
+        Image(bitmap = bitmap, contentDescription = label, modifier = Modifier.size(50.dp).clip(RoundedCornerShape(12.dp)))
+    }
+}
+
+@Composable
+private fun LinkTile(label: String, emoji: String?, showLabel: Boolean, onClick: () -> Unit) {
+    Tile(label, showLabel, onClick) {
+        if (!emoji.isNullOrBlank()) {
+            Text(emoji, fontSize = 30.sp)
+        } else {
+            Box(
+                Modifier.size(50.dp).clip(RoundedCornerShape(12.dp)).background(Color.White.copy(alpha = 0.15f)),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(Icons.Filled.Language, contentDescription = label, tint = LabelPrimary, modifier = Modifier.size(28.dp))
+            }
+        }
     }
 }
 
 /** Stable identity for a folder's expand/collapse state. */
 private fun SidebarItem.key(): String = when (type) {
     ItemType.APP -> "app:${packageName}"
+    ItemType.LINK -> "link:${name}:${url}"
     ItemType.FOLDER -> "folder:${name}:${packages.joinToString(",")}"
     ItemType.GROUP -> "group:${name}:${packages.joinToString(",")}"
 }

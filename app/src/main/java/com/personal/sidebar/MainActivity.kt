@@ -30,6 +30,7 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.DragHandle
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Folder
+import androidx.compose.material.icons.filled.Language
 import androidx.compose.material.icons.outlined.RadioButtonUnchecked
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
@@ -83,6 +84,7 @@ private sealed interface Screen {
     data object AddApps : Screen
     data object GlassLab : Screen
     data class FolderEdit(val index: Int?, val isGroup: Boolean = false) : Screen
+    data class LinkEdit(val index: Int?) : Screen
 }
 
 class MainActivity : ComponentActivity() {
@@ -128,8 +130,10 @@ private fun SidebarRoot() {
                 onAddApps = { screen = Screen.AddApps },
                 onNewFolder = { screen = Screen.FolderEdit(null, isGroup = false) },
                 onNewGroup = { screen = Screen.FolderEdit(null, isGroup = true) },
+                onNewLink = { screen = Screen.LinkEdit(null) },
                 onOpenGlassLab = { screen = Screen.GlassLab },
                 onEditFolder = { index -> screen = Screen.FolderEdit(index) },
+                onEditLink = { index -> screen = Screen.LinkEdit(index) },
                 onRemoveItem = { index ->
                     commit(config.copy(items = config.items.filterIndexed { i, _ -> i != index }))
                 },
@@ -174,6 +178,26 @@ private fun SidebarRoot() {
                     onCancel = { screen = Screen.Home },
                 )
             }
+
+            is Screen.LinkEdit -> {
+                val idx = s.index
+                LinkEditScreen(
+                    modifier = mod,
+                    existing = idx?.let { config.items.getOrNull(it) },
+                    onSave = { link ->
+                        val items = config.items.toMutableList()
+                        if (idx == null) items.add(link) else items[idx] = link
+                        commit(config.copy(items = items)); screen = Screen.Home
+                    },
+                    onDelete = if (idx != null) {
+                        {
+                            commit(config.copy(items = config.items.filterIndexed { i, _ -> i != idx }))
+                            screen = Screen.Home
+                        }
+                    } else null,
+                    onCancel = { screen = Screen.Home },
+                )
+            }
         }
     }
 }
@@ -188,8 +212,10 @@ private fun HomeScreen(
     onAddApps: () -> Unit,
     onNewFolder: () -> Unit,
     onNewGroup: () -> Unit,
+    onNewLink: () -> Unit,
     onOpenGlassLab: () -> Unit,
     onEditFolder: (Int) -> Unit,
+    onEditLink: (Int) -> Unit,
     onRemoveItem: (Int) -> Unit,
     onReorder: (List<SidebarItem>) -> Unit,
 ) {
@@ -320,15 +346,26 @@ private fun HomeScreen(
                         items = config.items,
                         appMap = rememberAppMap(),
                         onEditFolder = onEditFolder,
+                        onEditLink = onEditLink,
                         onRemove = onRemoveItem,
                         onReorder = onReorder,
                     )
                 }
                 Spacer(Modifier.height(12.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Row(
+                    Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
                     Button(onClick = onAddApps) { Text("Add apps") }
-                    OutlinedButton(onClick = onNewGroup) { Text("New group") }
                     OutlinedButton(onClick = onNewFolder) { Text("New folder") }
+                }
+                Spacer(Modifier.height(8.dp))
+                Row(
+                    Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    OutlinedButton(onClick = onNewGroup) { Text("New group") }
+                    OutlinedButton(onClick = onNewLink) { Text("Add link / PWA") }
                 }
             }
         }
@@ -452,6 +489,7 @@ private fun ReorderableItems(
     items: List<SidebarItem>,
     appMap: Map<String, com.personal.sidebar.apps.AppInfo>?,
     onEditFolder: (Int) -> Unit,
+    onEditLink: (Int) -> Unit,
     onRemove: (Int) -> Unit,
     onReorder: (List<SidebarItem>) -> Unit,
 ) {
@@ -535,6 +573,19 @@ private fun ReorderableItems(
                             Text("${item.packages.size} apps · $kind", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                         IconButton(onClick = { onEditFolder(currentIndex) }) { Icon(Icons.Filled.Edit, contentDescription = "Edit") }
+                    } else if (item.type == ItemType.LINK) {
+                        val glyph = item.emoji?.takeIf { it.isNotBlank() }
+                        if (glyph != null) {
+                            Box(Modifier.size(36.dp), contentAlignment = Alignment.Center) { Text(glyph, fontSize = 24.sp) }
+                        } else {
+                            Icon(Icons.Filled.Language, contentDescription = null, modifier = Modifier.size(36.dp), tint = MaterialTheme.colorScheme.primary)
+                        }
+                        Spacer(Modifier.width(12.dp))
+                        Column(Modifier.weight(1f)) {
+                            Text(item.name?.ifBlank { null } ?: "Link", style = MaterialTheme.typography.bodyLarge)
+                            Text(item.url ?: "", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
+                        }
+                        IconButton(onClick = { onEditLink(currentIndex) }) { Icon(Icons.Filled.Edit, contentDescription = "Edit") }
                     } else {
                         val app = item.packageName?.let { appMap?.get(it) }
                         AppIconSmall(item.packageName, appMap, 36)
@@ -551,6 +602,7 @@ private fun ReorderableItems(
 /** Stable identity for reorder/keying. */
 private fun itemKey(item: SidebarItem): String = when (item.type) {
     ItemType.APP -> "app:${item.packageName}"
+    ItemType.LINK -> "link:${item.name}:${item.url}"
     ItemType.FOLDER -> "folder:${item.name}:${item.packages.joinToString(",")}"
     ItemType.GROUP -> "group:${item.name}:${item.packages.joinToString(",")}"
 }

@@ -247,3 +247,74 @@ internal fun FolderEditScreen(
         }
     }
 }
+
+/**
+ * Add or edit a web link / PWA tile. A link opens a URL via ACTION_VIEW — if a
+ * PWA (WebAPK) is installed for that URL, Android launches it; otherwise the
+ * browser opens. The optional emoji becomes the tile icon (a globe otherwise).
+ */
+@Composable
+internal fun LinkEditScreen(
+    modifier: Modifier,
+    existing: SidebarItem?,
+    onSave: (SidebarItem) -> Unit,
+    onDelete: (() -> Unit)?,
+    onCancel: () -> Unit,
+) {
+    var name by remember { mutableStateOf(existing?.name ?: "") }
+    var emoji by remember { mutableStateOf(existing?.emoji ?: "") }
+    var url by remember { mutableStateOf(existing?.url ?: "https://") }
+
+    fun normalizedUrl(): String {
+        val u = url.trim()
+        return if (u.startsWith("http://") || u.startsWith("https://")) u else "https://$u"
+    }
+    val urlValid = url.trim().let { it.length > "https://".length && it.contains(".") }
+
+    Box(modifier.fillMaxSize()) {
+        SubScreen(
+            title = if (existing == null) "Add link" else "Edit link",
+            trailingLabel = "Save",
+            trailingEnabled = urlValid && name.isNotBlank(),
+            onBack = onCancel,
+            onTrailing = { onSave(SidebarItem.link(name.trim(), normalizedUrl(), emoji.trim().ifBlank { null })) },
+        ) {
+            Column(Modifier.fillMaxWidth().padding(horizontal = 8.dp)) {
+                Row(Modifier.fillMaxWidth().padding(vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedTextField(
+                        value = emoji,
+                        onValueChange = { emoji = it.take(4) },
+                        label = { Text("Emoji") },
+                        singleLine = true,
+                        modifier = Modifier.width(96.dp),
+                    )
+                    OutlinedTextField(
+                        value = name,
+                        onValueChange = { name = it },
+                        label = { Text("Label") },
+                        singleLine = true,
+                        modifier = Modifier.weight(1f),
+                    )
+                }
+                OutlinedTextField(
+                    value = url,
+                    onValueChange = { url = it },
+                    label = { Text("URL") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                )
+                Text(
+                    "Opens the URL. If you've installed it as a PWA (added to home screen), Android opens the PWA; otherwise it opens in your browser.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(vertical = 4.dp),
+                )
+                if (onDelete != null) {
+                    TextButton(onClick = onDelete) {
+                        Text("Delete link", color = MaterialTheme.colorScheme.error)
+                    }
+                }
+            }
+        }
+    }
+}
