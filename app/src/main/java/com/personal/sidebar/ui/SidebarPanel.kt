@@ -12,7 +12,6 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -72,13 +71,6 @@ private fun panelColor(brightness: Float): Color {
     val c = (16 + brightness.coerceIn(0f, 1f) * 176).toInt().coerceIn(0, 255)
     return Color(c, c, c)
 }
-
-/** Folder cards sit a step lighter than the panel so they read as raised. */
-private fun folderColor(brightness: Float): Color {
-    val base = (16 + brightness.coerceIn(0f, 1f) * 176).toInt()
-    val c = (base + 46).coerceIn(0, 220)
-    return Color(c, c, c)
-}
 private const val COLUMNS = 4
 
 /**
@@ -108,24 +100,13 @@ fun SidebarPanel(
     var appMap by remember { mutableStateOf<Map<String, AppInfo>?>(null) }
     LaunchedEffect(Unit) { appMap = AppRepository.map(context) }
 
-    val alignment = if (edge == Edge.LEFT) Alignment.CenterStart else Alignment.CenterEnd
-
+    // The window is already sized to the panel, so the card fills it and slides
+    // in from the active edge. No full-screen scrim — the background stays
+    // behind the panel only.
     Box(Modifier.fillMaxSize()) {
-        AnimatedVisibility(transition, enter = fadeIn(), exit = fadeOut()) {
-            Box(
-                Modifier
-                    .fillMaxSize()
-                    .background(Color(panel.scrimColor).copy(alpha = panel.scrimAlpha.coerceIn(0f, 1f)))
-                    .clickable(
-                        interactionSource = remember { MutableInteractionSource() },
-                        indication = null,
-                    ) { dismiss() }
-            )
-        }
-
         AnimatedVisibility(
             visibleState = transition,
-            modifier = Modifier.align(alignment),
+            modifier = Modifier.fillMaxSize(),
             enter = slideInHorizontally(
                 animationSpec = spring(dampingRatio = Spring.DampingRatioLowBouncy, stiffness = Spring.StiffnessMediumLow)
             ) { full -> if (edge == Edge.LEFT) -full else full } + fadeIn(),
@@ -137,8 +118,7 @@ fun SidebarPanel(
                 edge = edge,
                 items = items,
                 appMap = appMap,
-                opacity = panel.opacity,
-                brightness = panel.brightness,
+                panel = panel,
             ) { pkg ->
                 AppRepository.launch(context, pkg)
                 dismiss()
@@ -152,8 +132,7 @@ private fun PanelCard(
     edge: Edge,
     items: List<SidebarItem>,
     appMap: Map<String, AppInfo>?,
-    opacity: Float,
-    brightness: Float,
+    panel: PanelConfig,
     onLaunch: (String) -> Unit,
 ) {
     val shape = if (edge == Edge.LEFT) {
@@ -167,11 +146,21 @@ private fun PanelCard(
 
     Box(
         modifier = Modifier
-            .width(360.dp)
-            .fillMaxHeight()
-            .clip(shape)
-            .background(panelColor(brightness).copy(alpha = opacity.coerceIn(0.35f, 1f))),
+            .fillMaxSize()
+            .clip(shape),
     ) {
+        // Background layer (behind the panel tint), confined to the panel.
+        Box(
+            Modifier
+                .matchParentSize()
+                .background(Color(panel.scrimColor).copy(alpha = panel.scrimAlpha.coerceIn(0f, 1f)))
+        )
+        // Panel tint layer.
+        Box(
+            Modifier
+                .matchParentSize()
+                .background(panelColor(panel.brightness).copy(alpha = panel.opacity.coerceIn(0.35f, 1f)))
+        )
         Column(
             Modifier
                 .fillMaxSize()
@@ -206,7 +195,6 @@ private fun PanelCard(
                                 FolderSection(
                                     folder = entry,
                                     appMap = appMap,
-                                    brightness = brightness,
                                     isExpanded = expanded[fkey] ?: true,
                                     onToggle = { expanded[fkey] = !(expanded[fkey] ?: true) },
                                     onLaunch = onLaunch,
@@ -236,20 +224,21 @@ private fun PanelCard(
 private fun FolderSection(
     folder: SidebarItem,
     appMap: Map<String, AppInfo>,
-    brightness: Float,
     isExpanded: Boolean,
     onToggle: () -> Unit,
     onLaunch: (String) -> Unit,
 ) {
     // The whole folder is one floating card (drop shadow), with the dropdown
     // title INSIDE it at the top and the member apps below — like the image.
+    // Same background as the panel (transparent so the panel shows through);
+    // the border + soft shadow make it read as lifted above the panel.
     Surface(
         modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp),
         shape = RoundedCornerShape(20.dp),
-        color = folderColor(brightness),
-        shadowElevation = 16.dp,
+        color = Color.Transparent,
+        shadowElevation = 10.dp,
         tonalElevation = 0.dp,
-        border = BorderStroke(1.dp, Color.White.copy(alpha = 0.10f)),
+        border = BorderStroke(1.5.dp, Color.White.copy(alpha = 0.28f)),
     ) {
         Column(Modifier.padding(horizontal = 10.dp, vertical = 6.dp)) {
             Row(
