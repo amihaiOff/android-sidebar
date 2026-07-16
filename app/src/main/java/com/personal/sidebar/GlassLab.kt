@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -44,6 +45,7 @@ import androidx.compose.ui.layout.positionInParent
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.personal.sidebar.model.FolderConfig
 import com.personal.sidebar.model.PanelConfig
 import com.personal.sidebar.ui.drawSideShadows
@@ -180,34 +182,55 @@ private fun GlassPreview(p: PanelConfig, f: FolderConfig) {
                 Modifier.fillMaxSize().padding(12.dp),
                 verticalArrangement = Arrangement.spacedBy(10.dp),
             ) {
-                PreviewFolder(f)
+                // Loose apps row.
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    repeat(3) { AppPlaceholder() }
+                    repeat(4) { AppPlaceholder() }
                 }
+                // Folder circles row (the first is "open").
+                Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+                    PreviewFolderCircle(f, "📁", selected = true)
+                    PreviewFolderCircle(f, "🎮", selected = false)
+                    PreviewFolderCircle(f, "🎵", selected = false)
+                }
+                Box(Modifier.fillMaxWidth().height(1.dp).background(Color.White.copy(alpha = 0.15f)))
+                // Open folder contents.
+                PreviewFolderExpanded(f)
             }
         }
     }
 }
 
-/** Mock of the nested-glass folder inside the preview. */
 @Composable
-private fun PreviewFolder(f: FolderConfig) {
-    val folderTint = labTint(f.brightness).copy(alpha = f.opacity.coerceIn(0f, 1f))
+private fun PreviewFolderCircle(f: FolderConfig, emoji: String, selected: Boolean) {
+    val tint = labTint(f.brightness).copy(alpha = f.opacity.coerceIn(0f, 1f))
+    Box(
+        modifier = Modifier
+            .size(52.dp)
+            .drawBehind { drawSideShadows(f, size.minDimension / 2f) }
+            .clip(CircleShape)
+            .background(tint)
+            .then(
+                if (f.edgeDp > 0f) Modifier.border(f.edgeDp.dp, Color.White.copy(alpha = if (selected) 0.75f else 0.4f), CircleShape)
+                else Modifier
+            ),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(emoji, fontSize = 24.sp)
+    }
+}
+
+@Composable
+private fun PreviewFolderExpanded(f: FolderConfig) {
+    val tint = labTint(f.brightness).copy(alpha = f.opacity.coerceIn(0f, 1f))
     val shape = RoundedCornerShape(f.cornerDp.dp)
     Surface(
         shape = shape,
-        color = folderTint,
+        color = tint,
         shadowElevation = 0.dp,
         border = if (f.edgeDp > 0f) BorderStroke(f.edgeDp.dp, Color.White.copy(alpha = 0.4f)) else null,
-        modifier = Modifier.fillMaxWidth().drawBehind { drawSideShadows(f) },
+        modifier = Modifier.fillMaxWidth().drawBehind { drawSideShadows(f, f.cornerDp.dp.toPx()) },
     ) {
-        Column(Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Box(
-                Modifier
-                    .size(width = 54.dp, height = 6.dp)
-                    .clip(RoundedCornerShape(3.dp))
-                    .background(Color.White.copy(alpha = 0.5f))
-            )
+        Column(Modifier.padding(10.dp)) {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 repeat(f.columns.coerceIn(2, 5)) { AppPlaceholder() }
             }

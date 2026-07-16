@@ -192,6 +192,7 @@ internal fun FolderEditScreen(
 ) {
     val all = rememberAllApps()
     var name by remember { mutableStateOf(existing?.name ?: "") }
+    var emoji by remember { mutableStateOf(existing?.emoji ?: "") }
     val selected = remember { mutableStateListOf<String>().apply { existing?.packages?.let { addAll(it) } } }
 
     Box(modifier.fillMaxSize()) {
@@ -200,15 +201,24 @@ internal fun FolderEditScreen(
             trailingLabel = "Save",
             trailingEnabled = all != null && name.isNotBlank() && selected.isNotEmpty(),
             onBack = onCancel,
-            onTrailing = { onSave(SidebarItem.folder(name.trim(), selected.toList())) },
+            onTrailing = { onSave(SidebarItem.folder(name.trim(), selected.toList(), emoji.trim().ifBlank { null })) },
         ) {
-            OutlinedTextField(
-                value = name,
-                onValueChange = { name = it },
-                label = { Text("Folder name") },
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp),
-            )
+            Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedTextField(
+                    value = emoji,
+                    onValueChange = { emoji = it.take(4) },
+                    label = { Text("Emoji") },
+                    singleLine = true,
+                    modifier = Modifier.width(96.dp),
+                )
+                OutlinedTextField(
+                    value = name,
+                    onValueChange = { name = it },
+                    label = { Text("Folder name") },
+                    singleLine = true,
+                    modifier = Modifier.weight(1f),
+                )
+            }
             if (onDelete != null) {
                 TextButton(onClick = onDelete, modifier = Modifier.padding(start = 4.dp)) {
                     Text("Delete folder", color = MaterialTheme.colorScheme.error)

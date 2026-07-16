@@ -36,10 +36,11 @@ running handle re-arms on each change):
 - **Curated apps** — the panel is **empty by default**; you choose which apps
   appear via **Add apps** (a searchable, multi-select list). It never dumps
   every installed app on you.
-- **Folders** — group apps with **New folder**: give it a name, pick members.
-  In the panel a folder is a nested-glass card (more opaque than the panel, with
-  a bright edge + shadow for depth) that expands to a 3-column grid; opening one
-  dims the rest of the panel to focus on it. Edit/delete folders from settings.
+- **Folders** — group apps with **New folder**: give it a name, an **emoji**,
+  and pick members. In the panel, folders appear as a **row of glass circles**
+  (the emoji is the icon); tapping one **expands its apps below the line**, with
+  the expansion animating out from the tapped circle. Opening a folder dims the
+  rest of the panel to focus on it. Edit/delete folders from settings.
 - **Reorder** — long-press the drag handle on any item in the settings list to
   drag it up or down; the new order is what the panel shows.
 - **Panel & glass (the lab)** — all panel + folder look controls in one screen

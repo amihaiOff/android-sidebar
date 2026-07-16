@@ -63,6 +63,7 @@ import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
@@ -510,7 +511,12 @@ private fun ReorderableItems(
                             },
                     )
                     if (item.type == ItemType.FOLDER) {
-                        Icon(Icons.Filled.Folder, contentDescription = null, modifier = Modifier.size(36.dp), tint = MaterialTheme.colorScheme.primary)
+                        val glyph = item.emoji?.takeIf { it.isNotBlank() }
+                        if (glyph != null) {
+                            Box(Modifier.size(36.dp), contentAlignment = Alignment.Center) { Text(glyph, fontSize = 24.sp) }
+                        } else {
+                            Icon(Icons.Filled.Folder, contentDescription = null, modifier = Modifier.size(36.dp), tint = MaterialTheme.colorScheme.primary)
+                        }
                         Spacer(Modifier.width(12.dp))
                         Column(Modifier.weight(1f)) {
                             Text(item.name ?: "Folder", style = MaterialTheme.typography.bodyLarge)

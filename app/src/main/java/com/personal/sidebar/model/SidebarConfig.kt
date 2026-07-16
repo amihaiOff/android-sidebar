@@ -14,13 +14,15 @@ data class SidebarItem(
     val packageName: String? = null,
     /** Display name for [ItemType.FOLDER]. */
     val name: String? = null,
+    /** Emoji shown in the folder's circle (its "name"). */
+    val emoji: String? = null,
     /** Member package names for [ItemType.FOLDER]. */
     val packages: List<String> = emptyList(),
 ) {
     companion object {
         fun app(pkg: String) = SidebarItem(ItemType.APP, packageName = pkg)
-        fun folder(name: String, packages: List<String>) =
-            SidebarItem(ItemType.FOLDER, name = name, packages = packages)
+        fun folder(name: String, packages: List<String>, emoji: String? = null) =
+            SidebarItem(ItemType.FOLDER, name = name, emoji = emoji, packages = packages)
     }
 }
 

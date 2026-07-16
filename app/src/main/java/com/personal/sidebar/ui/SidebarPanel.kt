@@ -5,8 +5,12 @@ import androidx.compose.animation.core.MutableTransitionState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.spring
+import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.foundation.BorderStroke
@@ -17,29 +21,30 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.lazy.grid.GridCells
-import androidx.compose.foundation.lazy.grid.GridItemSpan
-import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ExpandLess
-import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.Icon
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -51,11 +56,14 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
 import androidx.compose.ui.graphics.nativeCanvas
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.layout.positionInParent
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -84,7 +92,7 @@ private fun panelColor(brightness: Float): Color {
  * so a translucent folder isn't darkened underneath — only the outer bleed
  * shows.
  */
-internal fun androidx.compose.ui.graphics.drawscope.DrawScope.drawSideShadows(style: FolderConfig) {
+internal fun androidx.compose.ui.graphics.drawscope.DrawScope.drawSideShadows(style: FolderConfig, cornerPx: Float) {
     val left = style.shadowLeftDp.dp.toPx()
     val top = style.shadowTopDp.dp.toPx()
     val right = style.shadowRightDp.dp.toPx()
@@ -93,7 +101,7 @@ internal fun androidx.compose.ui.graphics.drawscope.DrawScope.drawSideShadows(st
 
     val w = size.width
     val h = size.height
-    val corner = style.cornerDp.dp.toPx()
+    val corner = cornerPx
     val blur = 8.dp.toPx()
 
     val paint = android.graphics.Paint().apply {
@@ -186,8 +194,6 @@ private fun PanelCard(
         RoundedCornerShape(topStart = corner, bottomStart = corner)
     }
     val systemPadding = WindowInsets.safeDrawing.asPaddingValues()
-    // One folder open at a time; when open, everything else dims (focus).
-    var openKey by remember { mutableStateOf<String?>(null) }
 
     Box(
         modifier = Modifier
@@ -231,122 +237,201 @@ private fun PanelCard(
                         color = LabelSecondary,
                     )
                 }
-                else -> LazyVerticalGrid(
-                    columns = GridCells.Fixed(COLUMNS),
-                    verticalArrangement = Arrangement.spacedBy(6.dp),
-                    horizontalArrangement = Arrangement.spacedBy(2.dp),
-                    modifier = Modifier.fillMaxSize(),
-                ) {
-                    val dimActive = openKey != null
-                    items.forEachIndexed { index, entry ->
-                        if (entry.type == ItemType.FOLDER) {
-                            val fkey = entry.key()
-                            val isOpen = openKey == fkey
-                            item(span = { GridItemSpan(maxLineSpan) }, key = "f$index") {
-                                val dim by animateFloatAsState(if (dimActive && !isOpen) 0.35f else 1f, label = "dim")
-                                Box(Modifier.alpha(dim)) {
-                                    FolderSection(
-                                        folder = entry,
-                                        appMap = appMap,
-                                        style = folder,
-                                        isExpanded = isOpen,
-                                        onToggle = { openKey = if (isOpen) null else fkey },
-                                        onLaunch = onLaunch,
-                                    )
-                                }
-                            }
-                        } else {
-                            item(key = "a$index") {
-                                val dim by animateFloatAsState(if (dimActive) 0.35f else 1f, label = "dim")
-                                val app = entry.packageName?.let { appMap[it] }
-                                if (app != null) {
-                                    Box(Modifier.alpha(dim)) {
-                                        AppTile(
-                                            label = app.label,
-                                            bitmap = remember(app.packageName) { app.icon.toBitmap(144, 144).asImageBitmap() },
-                                        ) { onLaunch(app.packageName) }
-                                    }
-                                } else {
-                                    Box(Modifier.size(1.dp))
-                                }
-                            }
-                        }
-                    }
-                }
+                else -> PanelContent(
+                    apps = items.filter { it.type == ItemType.APP },
+                    folders = items.filter { it.type == ItemType.FOLDER },
+                    appMap = appMap,
+                    style = folder,
+                    onLaunch = onLaunch,
+                )
             }
         }
     }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun FolderSection(
-    folder: SidebarItem,
+private fun PanelContent(
+    apps: List<SidebarItem>,
+    folders: List<SidebarItem>,
     appMap: Map<String, AppInfo>,
     style: FolderConfig,
-    isExpanded: Boolean,
-    onToggle: () -> Unit,
     onLaunch: (String) -> Unit,
 ) {
-    // Nested glass: a closer layer than the panel — its own (usually more
-    // opaque) tint + a bright edge + per-side drop shadows give it depth.
-    val folderTint = panelColor(style.brightness).copy(alpha = style.opacity.coerceIn(0f, 1f))
+    var openKey by remember { mutableStateOf<String?>(null) }
+    var pivotX by remember { mutableStateOf(0.5f) }
+    var widthPx by remember { mutableStateOf(1f) }
+    val centers = remember { mutableStateMapOf<String, Float>() }
+    val dimActive = openKey != null
+
+    Column(
+        Modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState())
+            .onSizeChanged { widthPx = it.width.toFloat().coerceAtLeast(1f) },
+    ) {
+        // Loose apps grid.
+        if (apps.isNotEmpty()) {
+            val dim by animateFloatAsState(if (dimActive) 0.35f else 1f, label = "appsDim")
+            AppGrid(apps, COLUMNS, appMap, Modifier.alpha(dim), onLaunch)
+        }
+
+        if (folders.isNotEmpty()) {
+            if (apps.isNotEmpty()) Spacer(Modifier.height(14.dp))
+
+            // Row of folder circles (wraps if there are many).
+            FlowRow(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(14.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                folders.forEach { f ->
+                    val key = f.key()
+                    val isOpen = openKey == key
+                    val dim by animateFloatAsState(if (dimActive && !isOpen) 0.4f else 1f, label = "circleDim")
+                    FolderCircle(
+                        folder = f,
+                        style = style,
+                        selected = isOpen,
+                        modifier = Modifier
+                            .alpha(dim)
+                            .onGloballyPositioned { c ->
+                                centers[key] = c.positionInParent().x + c.size.width / 2f
+                            },
+                        onClick = {
+                            pivotX = ((centers[key] ?: (widthPx / 2f)) / widthPx).coerceIn(0f, 1f)
+                            openKey = if (isOpen) null else key
+                        },
+                    )
+                }
+            }
+
+            // The "line" under the circles; folders open below it.
+            Box(
+                Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 10.dp)
+                    .height(1.dp)
+                    .background(Color.White.copy(alpha = 0.15f))
+            )
+
+            val open = folders.firstOrNull { it.key() == openKey }
+            var shown by remember { mutableStateOf<SidebarItem?>(null) }
+            LaunchedEffect(openKey) { if (open != null) shown = open }
+            AnimatedVisibility(
+                visible = open != null,
+                enter = fadeIn() + scaleIn(transformOrigin = TransformOrigin(pivotX, 0f), initialScale = 0.5f) +
+                    expandVertically(expandFrom = Alignment.Top),
+                exit = fadeOut() + scaleOut(transformOrigin = TransformOrigin(pivotX, 0f), targetScale = 0.5f) +
+                    shrinkVertically(shrinkTowards = Alignment.Top),
+            ) {
+                shown?.let { FolderExpanded(it, style, appMap, onLaunch) }
+            }
+        }
+    }
+}
+
+/** A folder as a glass circle showing its emoji, with a label beneath. */
+@Composable
+private fun FolderCircle(
+    folder: SidebarItem,
+    style: FolderConfig,
+    selected: Boolean,
+    modifier: Modifier,
+    onClick: () -> Unit,
+) {
+    val tint = panelColor(style.brightness).copy(alpha = style.opacity.coerceIn(0f, 1f))
+    Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = modifier) {
+        Box(
+            modifier = Modifier
+                .size(58.dp)
+                .drawBehind { drawSideShadows(style, size.minDimension / 2f) }
+                .clip(CircleShape)
+                .background(tint)
+                .then(
+                    if (style.edgeDp > 0f) {
+                        Modifier.border(style.edgeDp.dp, Color.White.copy(alpha = if (selected) 0.75f else 0.4f), CircleShape)
+                    } else {
+                        Modifier
+                    }
+                )
+                .clickable(onClick = onClick),
+            contentAlignment = Alignment.Center,
+        ) {
+            val glyph = folder.emoji?.takeIf { it.isNotBlank() } ?: folder.name?.take(1) ?: "📁"
+            Text(glyph, fontSize = 26.sp)
+        }
+        if (!folder.name.isNullOrBlank()) {
+            Text(
+                folder.name,
+                color = LabelSecondary,
+                fontSize = 10.sp,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.padding(top = 4.dp).width(58.dp),
+            )
+        }
+    }
+}
+
+/** The open folder's apps, in a nested-glass card below the line. */
+@Composable
+private fun FolderExpanded(
+    folder: SidebarItem,
+    style: FolderConfig,
+    appMap: Map<String, AppInfo>,
+    onLaunch: (String) -> Unit,
+) {
+    val tint = panelColor(style.brightness).copy(alpha = style.opacity.coerceIn(0f, 1f))
     val shape = RoundedCornerShape(style.cornerDp.dp)
     Surface(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(vertical = 6.dp)
-            .drawBehind { drawSideShadows(style) },
+            .padding(vertical = 4.dp)
+            .drawBehind { drawSideShadows(style, style.cornerDp.dp.toPx()) },
         shape = shape,
-        color = folderTint,
-        shadowElevation = 0.dp, // custom per-side shadows below
+        color = tint,
+        shadowElevation = 0.dp,
         tonalElevation = 0.dp,
         border = if (style.edgeDp > 0f) BorderStroke(style.edgeDp.dp, Color.White.copy(alpha = 0.4f)) else null,
     ) {
-        Column(Modifier.padding(horizontal = 10.dp, vertical = 6.dp)) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(10.dp))
-                    .clickable(onClick = onToggle)
-                    .padding(horizontal = 6.dp, vertical = 8.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Text(
-                    text = folder.name ?: "Folder",
-                    color = LabelPrimary,
-                    fontWeight = FontWeight.SemiBold,
-                    fontSize = 17.sp,
-                    modifier = Modifier.weight(1f),
-                )
-                Icon(
-                    imageVector = if (isExpanded) Icons.Filled.ExpandLess else Icons.Filled.ExpandMore,
-                    contentDescription = if (isExpanded) "Collapse" else "Expand",
-                    tint = LabelSecondary,
-                )
-            }
+        Column(Modifier.padding(10.dp)) {
+            AppGrid(
+                apps = folder.packages.map { SidebarItem.app(it) },
+                cols = style.columns.coerceIn(2, 5),
+                appMap = appMap,
+                modifier = Modifier,
+                onLaunch = onLaunch,
+            )
+        }
+    }
+}
 
-            AnimatedVisibility(visible = isExpanded) {
-                // Manual (non-lazy) grid so it can nest inside the outer grid.
-                Column(
-                    modifier = Modifier.padding(top = 2.dp, bottom = 4.dp),
-                    verticalArrangement = Arrangement.spacedBy(6.dp),
-                ) {
-                    val cols = style.columns.coerceIn(2, 5)
-                    val members = folder.packages.mapNotNull { appMap[it] }
-                    members.chunked(cols).forEach { rowApps ->
-                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(2.dp)) {
-                            rowApps.forEach { app ->
-                                Box(Modifier.weight(1f)) {
-                                    AppTile(
-                                        label = app.label,
-                                        bitmap = remember(app.packageName) { app.icon.toBitmap(144, 144).asImageBitmap() },
-                                    ) { onLaunch(app.packageName) }
-                                }
-                            }
-                            repeat(cols - rowApps.size) { Box(Modifier.weight(1f)) }
+/** A non-lazy icon grid used for both loose apps and folder contents. */
+@Composable
+private fun AppGrid(
+    apps: List<SidebarItem>,
+    cols: Int,
+    appMap: Map<String, AppInfo>,
+    modifier: Modifier,
+    onLaunch: (String) -> Unit,
+) {
+    Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        apps.chunked(cols).forEach { rowItems ->
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+                rowItems.forEach { item ->
+                    Box(Modifier.weight(1f)) {
+                        val app = item.packageName?.let { appMap[it] }
+                        if (app != null) {
+                            AppTile(
+                                label = app.label,
+                                bitmap = remember(app.packageName) { app.icon.toBitmap(144, 144).asImageBitmap() },
+                            ) { onLaunch(app.packageName) }
                         }
                     }
                 }
+                repeat(cols - rowItems.size) { Box(Modifier.weight(1f)) }
             }
         }
     }
