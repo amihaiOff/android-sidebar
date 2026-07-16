@@ -43,12 +43,17 @@ running handle re-arms on each change):
 - **Reorder** — long-press the drag handle on any item in the settings list to
   drag it up or down; the new order is what the panel shows.
 - **Panel & glass (the lab)** — all panel + folder look controls in one screen
-  (Appearance → **Panel & glass…**), each wired to a live preview: panel tint
-  opacity, brightness (near-black → white), edge stroke, background colour/dim;
-  and folder opacity, brightness, edge, columns and corner radius. Changes apply
-  on back. Effects stay **inside the panel** — a translucent frosted tint rather
-  than a real backdrop blur, because a per-window blur can't be confined to an
-  overlay's bounds on Android (the platform blur covers the whole screen).
+  (Appearance → **Panel & glass…**), each wired to a live preview: panel frost
+  (blur), tint opacity, brightness (near-black → white), edge stroke, background
+  colour/dim; and folder opacity, brightness, edge, columns and corner radius.
+  Changes apply on back.
+- **Real, panel-confined blur.** The panel is hosted in a `Dialog` (a real
+  `Window`, typed as a system overlay) so it can use
+  `Window.setBackgroundBlurRadius` — a hardware backdrop blur clipped to the
+  window's bounds. That keeps the frosted-glass blur **inside the panel only**;
+  the rest of the screen is untouched. (A plain `WindowManager` overlay can't do
+  this — its only blur, `FLAG_BLUR_BEHIND`, covers the whole screen.) Needs
+  Android 12+ with cross-window blur enabled; otherwise it's a translucent tint.
 
 Config is stored as JSON in SharedPreferences (`kotlinx.serialization`).
 

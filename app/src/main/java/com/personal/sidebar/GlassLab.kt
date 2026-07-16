@@ -32,12 +32,15 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.DrawScope
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInParent
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -98,6 +101,7 @@ internal fun GlassLabScreen(
 
         Spacer(Modifier.height(16.dp))
         SectionLabel("Panel")
+        LabSlider("Frost (blur)", p.blurDp.toFloat(), 0f..80f, "${p.blurDp} dp") { p = p.copy(blurDp = it.toInt()) }
         LabSlider("Tint opacity", p.opacity, 0.1f..1f, "${(p.opacity * 100).roundToInt()}%") { p = p.copy(opacity = it) }
         LabSlider("Brightness", p.brightness, 0f..1f, "${(p.brightness * 100).roundToInt()}%") { p = p.copy(brightness = it) }
         LabSlider("Edge stroke", p.edgeDp, 0f..4f, "${p.edgeDp.roundToInt()} dp") { p = p.copy(edgeDp = it) }
@@ -135,21 +139,30 @@ private fun GlassPreview(p: PanelConfig, f: FolderConfig) {
         val boxWpx = with(density) { maxWidth.toPx() }
         val boxHpx = with(density) { maxHeight.toPx() }
         val shape = RoundedCornerShape(topStart = 22.dp, bottomStart = 22.dp)
+        val previewBlur = minOf(p.blurDp, 40)
 
-        // Muted "wallpaper" behind the panel. Stays sharp — no effects escape
-        // the panel, exactly like the real overlay.
-        Box(Modifier.matchParentSize().drawBehind { drawScene(boxWpx, boxHpx) })
+        // Muted "wallpaper" behind the panel. Stays sharp outside the panel —
+        // the blur is confined to the panel region, exactly like the real overlay.
+        Box(Modifier.matchParentSize().drawBehind { drawScene(Offset.Zero, boxWpx, boxHpx) })
 
+        var pos by remember { mutableStateOf(Offset.Zero) }
         Box(
             modifier = Modifier
                 .align(Alignment.CenterEnd)
                 .fillMaxWidth(0.62f)
                 .fillMaxSize()
+                .onGloballyPositioned { pos = it.positionInParent() }
                 .clip(shape)
                 .border(p.edgeDp.dp, Color.White.copy(alpha = 0.3f), shape),
         ) {
-            // Background scrim, then the translucent panel tint (wallpaper shows
-            // through it — that's the frosted-glass feel without a blur).
+            // Blurred wallpaper slice aligned under the panel (frosted backdrop).
+            Box(
+                Modifier
+                    .matchParentSize()
+                    .then(if (previewBlur > 0) Modifier.blur(previewBlur.dp) else Modifier)
+                    .drawBehind { drawScene(pos, boxWpx, boxHpx) }
+            )
+            // Background scrim, then the translucent panel tint.
             Box(Modifier.matchParentSize().background(Color(p.scrimColor).copy(alpha = p.scrimAlpha.coerceIn(0f, 1f))))
             Box(Modifier.matchParentSize().background(labTint(p.brightness).copy(alpha = p.opacity.coerceIn(0.1f, 1f))))
 
@@ -192,18 +205,18 @@ private fun PreviewFolder(f: FolderConfig) {
     }
 }
 
-private fun DrawScope.drawScene(wpx: Float, hpx: Float) {
+private fun DrawScope.drawScene(origin: Offset, wpx: Float, hpx: Float) {
     drawRect(
         brush = Brush.linearGradient(
             listOf(Color(0xFF1F2933), Color(0xFF323D46), Color(0xFF29343C)),
-            start = Offset(0f, 0f),
-            end = Offset(wpx, hpx),
+            start = Offset(0f, 0f) - origin,
+            end = Offset(wpx, hpx) - origin,
         ),
         size = size,
     )
-    drawCircle(Color(0x554FC3F7), radius = 70.dp.toPx(), center = Offset(0.22f * wpx, 0.30f * hpx))
-    drawCircle(Color(0x55FF8A65), radius = 92.dp.toPx(), center = Offset(0.74f * wpx, 0.38f * hpx))
-    drawCircle(Color(0x5581C784), radius = 80.dp.toPx(), center = Offset(0.48f * wpx, 0.84f * hpx))
+    drawCircle(Color(0x554FC3F7), radius = 70.dp.toPx(), center = Offset(0.22f * wpx, 0.30f * hpx) - origin)
+    drawCircle(Color(0x55FF8A65), radius = 92.dp.toPx(), center = Offset(0.74f * wpx, 0.38f * hpx) - origin)
+    drawCircle(Color(0x5581C784), radius = 80.dp.toPx(), center = Offset(0.48f * wpx, 0.84f * hpx) - origin)
 }
 
 @Composable
