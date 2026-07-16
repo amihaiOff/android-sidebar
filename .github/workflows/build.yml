@@ -50,15 +50,20 @@ jobs:
         run: |
           cp app/build/outputs/apk/debug/app-debug.apk sidebar-latest.apk
 
-      - name: Publish to 'latest' release
+      # Each build gets a real, incrementing version tag (v1.0.<run>) and is
+      # marked as the GitHub "latest" release. Obtainium reads the tag as the
+      # version, so it sees a genuine version that climbs every build and can
+      # detect updates. The stable download URL still works because
+      # releases/latest/download/... follows the "latest" flag, not the tag.
+      - name: Publish versioned release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: latest
-          name: Latest build
+          tag_name: v1.0.${{ github.run_number }}
+          name: v1.0.${{ github.run_number }}
           body: |
-            Rolling debug build from commit ${{ github.sha }}.
-            versionCode ${{ github.run_number }}. Install via Obtainium.
+            Automated build from commit ${{ github.sha }}
+            (versionName 1.0.${{ github.run_number }}, versionCode ${{ github.run_number }}).
+            Install/update via Obtainium.
           files: sidebar-latest.apk
           make_latest: true
-          # Move the `latest` tag to this commit each run.
           target_commitish: ${{ github.sha }}

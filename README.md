@@ -48,8 +48,10 @@ Config is stored as JSON in SharedPreferences (`kotlinx.serialization`).
 
 ## Install on your phone (via Obtainium)
 
-Every push builds an APK in GitHub Actions and publishes it to a rolling
-release under the tag **`latest`**, giving one stable download URL:
+Every push builds an APK in GitHub Actions and publishes it as a new
+versioned release (tag **`v1.0.<build>`**) marked as the repo's *latest*
+release. Obtainium reads the tag as the version, so each build is a genuine
+version bump it can detect. The "latest" flag also gives one stable URL:
 
 ```
 https://github.com/amihaioff/android-sidebar/releases/latest/download/sidebar-latest.apk
