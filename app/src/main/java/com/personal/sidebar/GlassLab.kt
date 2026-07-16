@@ -71,12 +71,15 @@ internal fun GlassLabScreen(
     modifier: Modifier,
     panel: PanelConfig,
     folder: FolderConfig,
-    onCommit: (PanelConfig, FolderConfig) -> Unit,
+    onChange: (PanelConfig, FolderConfig) -> Unit,
     onBack: () -> Unit,
 ) {
     var p by remember { mutableStateOf(panel) }
     var f by remember { mutableStateOf(folder) }
-    fun done() { onCommit(p, f); onBack() }
+    // Apply every change immediately (persisted live), so it takes effect right
+    // away and is never lost by leaving the screen without going back.
+    fun setP(np: PanelConfig) { p = np; onChange(np, f) }
+    fun setF(nf: FolderConfig) { f = nf; onChange(p, nf) }
 
     Column(
         modifier
@@ -85,13 +88,13 @@ internal fun GlassLabScreen(
             .padding(16.dp),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            IconButton(onClick = { done() }) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back") }
+            IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back") }
             Text("Panel & glass", style = MaterialTheme.typography.titleLarge)
         }
         Text(
-            "Everything that controls the panel and folder look lives here. The " +
-                "preview updates live and is applied when you go back. Effects stay " +
-                "inside the panel — nothing touches the rest of the screen.",
+            "Everything that controls the panel and folder look lives here. Changes " +
+                "apply immediately and the preview updates live. Effects stay inside " +
+                "the panel — nothing touches the rest of the screen.",
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.padding(top = 4.dp, bottom = 14.dp),
@@ -101,30 +104,30 @@ internal fun GlassLabScreen(
 
         Spacer(Modifier.height(16.dp))
         SectionLabel("Panel")
-        LabSlider("Frost (blur)", p.blurDp.toFloat(), 0f..80f, "${p.blurDp} dp") { p = p.copy(blurDp = it.toInt()) }
-        LabSlider("Tint opacity", p.opacity, 0.1f..1f, "${(p.opacity * 100).roundToInt()}%") { p = p.copy(opacity = it) }
-        LabSlider("Brightness", p.brightness, 0f..1f, "${(p.brightness * 100).roundToInt()}%") { p = p.copy(brightness = it) }
-        LabSlider("Edge stroke", p.edgeDp, 0f..4f, "${p.edgeDp.roundToInt()} dp") { p = p.copy(edgeDp = it) }
-        LabSlider("Corner radius", p.cornerDp.toFloat(), 0f..48f, "${p.cornerDp} dp") { p = p.copy(cornerDp = it.roundToInt()) }
+        LabSlider("Frost (blur)", p.blurDp.toFloat(), 0f..80f, "${p.blurDp} dp") { setP(p.copy(blurDp = it.toInt())) }
+        LabSlider("Tint opacity", p.opacity, 0.1f..1f, "${(p.opacity * 100).roundToInt()}%") { setP(p.copy(opacity = it)) }
+        LabSlider("Brightness", p.brightness, 0f..1f, "${(p.brightness * 100).roundToInt()}%") { setP(p.copy(brightness = it)) }
+        LabSlider("Edge stroke", p.edgeDp, 0f..4f, "${p.edgeDp.roundToInt()} dp") { setP(p.copy(edgeDp = it)) }
+        LabSlider("Corner radius", p.cornerDp.toFloat(), 0f..48f, "${p.cornerDp} dp") { setP(p.copy(cornerDp = it.roundToInt())) }
         Text("Background", style = MaterialTheme.typography.labelLarge, modifier = Modifier.padding(top = 8.dp))
         Row(Modifier.padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             LAB_SWATCHES.forEach { rgb ->
                 ColorDot(
                     rgb = rgb,
                     selected = (p.scrimColor and 0x00FFFFFF) == (rgb and 0x00FFFFFF),
-                    onClick = { p = p.copy(scrimColor = labWithRgb(p.scrimColor, rgb)) },
+                    onClick = { setP(p.copy(scrimColor = labWithRgb(p.scrimColor, rgb))) },
                 )
             }
         }
-        LabSlider("Background dim", p.scrimAlpha, 0f..0.85f, "${(p.scrimAlpha * 100).roundToInt()}%") { p = p.copy(scrimAlpha = it) }
+        LabSlider("Background dim", p.scrimAlpha, 0f..0.85f, "${(p.scrimAlpha * 100).roundToInt()}%") { setP(p.copy(scrimAlpha = it)) }
 
         Spacer(Modifier.height(16.dp))
         SectionLabel("Folder")
-        LabSlider("Folder opacity", f.opacity, 0.2f..1f, "${(f.opacity * 100).roundToInt()}%") { f = f.copy(opacity = it) }
-        LabSlider("Folder brightness", f.brightness, 0f..1f, "${(f.brightness * 100).roundToInt()}%") { f = f.copy(brightness = it) }
-        LabSlider("Folder edge", f.edgeDp, 0f..4f, "${f.edgeDp.roundToInt()} dp") { f = f.copy(edgeDp = it) }
-        LabSlider("Folder columns", f.columns.toFloat(), 2f..5f, "${f.columns}") { f = f.copy(columns = it.roundToInt()) }
-        LabSlider("Folder corners", f.cornerDp.toFloat(), 0f..32f, "${f.cornerDp} dp") { f = f.copy(cornerDp = it.roundToInt()) }
+        LabSlider("Folder opacity", f.opacity, 0.2f..1f, "${(f.opacity * 100).roundToInt()}%") { setF(f.copy(opacity = it)) }
+        LabSlider("Folder brightness", f.brightness, 0f..1f, "${(f.brightness * 100).roundToInt()}%") { setF(f.copy(brightness = it)) }
+        LabSlider("Folder edge", f.edgeDp, 0f..4f, "${f.edgeDp.roundToInt()} dp") { setF(f.copy(edgeDp = it)) }
+        LabSlider("Folder columns", f.columns.toFloat(), 2f..5f, "${f.columns}") { setF(f.copy(columns = it.roundToInt())) }
+        LabSlider("Folder corners", f.cornerDp.toFloat(), 0f..32f, "${f.cornerDp} dp") { setF(f.copy(cornerDp = it.roundToInt())) }
     }
 }
 

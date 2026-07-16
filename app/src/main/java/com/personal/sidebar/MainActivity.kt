@@ -103,6 +103,13 @@ private fun SidebarRoot() {
         if (running) SidebarService.refresh(context)
     }
 
+    // Persist without re-arming the handle — for panel/folder look changes,
+    // which are read fresh each time the panel opens (no handle refresh needed).
+    fun persist(new: SidebarConfig) {
+        config = new
+        Settings.setConfig(context, new)
+    }
+
     Scaffold { padding ->
         val mod = Modifier.padding(padding)
         when (val s = screen) {
@@ -137,8 +144,8 @@ private fun SidebarRoot() {
                 modifier = mod,
                 panel = config.panel,
                 folder = config.folder,
-                onCommit = { newPanel, newFolder ->
-                    commit(config.copy(panel = newPanel, folder = newFolder))
+                onChange = { newPanel, newFolder ->
+                    persist(config.copy(panel = newPanel, folder = newFolder))
                 },
                 onBack = { screen = Screen.Home },
             )
