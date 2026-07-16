@@ -52,6 +52,8 @@ import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
+import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -76,36 +78,39 @@ private fun panelColor(brightness: Float): Color {
     return Color(c, c, c)
 }
 
-/** Draws soft drop shadows extending outward on each side of a card. */
+/**
+ * Draws a soft drop shadow that follows the card's rounded corners, extended
+ * per side (top/bottom/left/right). The card's own rounded rect is clipped out
+ * so a translucent folder isn't darkened underneath — only the outer bleed
+ * shows.
+ */
 internal fun androidx.compose.ui.graphics.drawscope.DrawScope.drawSideShadows(style: FolderConfig) {
-    val shadow = Color.Black.copy(alpha = 0.5f)
-    val clear = Color.Transparent
+    val left = style.shadowLeftDp.dp.toPx()
+    val top = style.shadowTopDp.dp.toPx()
+    val right = style.shadowRightDp.dp.toPx()
+    val bottom = style.shadowBottomDp.dp.toPx()
+    if (left <= 0f && top <= 0f && right <= 0f && bottom <= 0f) return
+
     val w = size.width
     val h = size.height
-    val top = style.shadowTopDp.dp.toPx()
-    val bottom = style.shadowBottomDp.dp.toPx()
-    val left = style.shadowLeftDp.dp.toPx()
-    val right = style.shadowRightDp.dp.toPx()
-    if (top > 0f) drawRect(
-        androidx.compose.ui.graphics.Brush.verticalGradient(listOf(clear, shadow), startY = -top, endY = 0f),
-        topLeft = androidx.compose.ui.geometry.Offset(0f, -top),
-        size = androidx.compose.ui.geometry.Size(w, top),
-    )
-    if (bottom > 0f) drawRect(
-        androidx.compose.ui.graphics.Brush.verticalGradient(listOf(shadow, clear), startY = h, endY = h + bottom),
-        topLeft = androidx.compose.ui.geometry.Offset(0f, h),
-        size = androidx.compose.ui.geometry.Size(w, bottom),
-    )
-    if (left > 0f) drawRect(
-        androidx.compose.ui.graphics.Brush.horizontalGradient(listOf(clear, shadow), startX = -left, endX = 0f),
-        topLeft = androidx.compose.ui.geometry.Offset(-left, 0f),
-        size = androidx.compose.ui.geometry.Size(left, h),
-    )
-    if (right > 0f) drawRect(
-        androidx.compose.ui.graphics.Brush.horizontalGradient(listOf(shadow, clear), startX = w, endX = w + right),
-        topLeft = androidx.compose.ui.geometry.Offset(w, 0f),
-        size = androidx.compose.ui.geometry.Size(right, h),
-    )
+    val corner = style.cornerDp.dp.toPx()
+    val blur = 8.dp.toPx()
+
+    val paint = android.graphics.Paint().apply {
+        isAntiAlias = true
+        color = android.graphics.Color.argb(150, 0, 0, 0)
+        maskFilter = android.graphics.BlurMaskFilter(blur, android.graphics.BlurMaskFilter.Blur.NORMAL)
+    }
+    val cardPath = android.graphics.Path().apply {
+        addRoundRect(0f, 0f, w, h, corner, corner, android.graphics.Path.Direction.CW)
+    }
+    drawIntoCanvas { canvas ->
+        val nc = canvas.nativeCanvas
+        val save = nc.save()
+        nc.clipOutPath(cardPath) // don't paint under the (possibly translucent) card
+        nc.drawRoundRect(-left, -top, w + right, h + bottom, corner, corner, paint)
+        nc.restoreToCount(save)
+    }
 }
 private const val COLUMNS = 4
 
