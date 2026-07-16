@@ -182,15 +182,20 @@ fun SidebarPanel(
         )
         dismiss()
     }
-    // Open a web link / PWA. If a PWA (WebAPK) is installed for the URL, Android
-    // routes ACTION_VIEW to it; otherwise it opens in the browser.
+    // Open a web link / PWA. Prefer an installed app that handles the URL — a
+    // PWA/WebAPK — over a browser, so it opens full-screen like the app instead
+    // of a browser tab. Falls back to the browser when no such app is installed.
     val onOpenLink: (String) -> Unit = { url ->
-        runCatching {
-            context.startActivity(
-                android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(url))
-                    .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
-            )
-        }
+        val base = android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(url))
+            .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+        val launchedApp = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R) {
+            // REQUIRE_NON_BROWSER throws if only browsers can handle the URL, so
+            // this launches the WebAPK when present and lets us fall back otherwise.
+            val nonBrowser = android.content.Intent(base)
+                .addFlags(android.content.Intent.FLAG_ACTIVITY_REQUIRE_NON_BROWSER)
+            runCatching { context.startActivity(nonBrowser) }.isSuccess
+        } else false
+        if (!launchedApp) runCatching { context.startActivity(base) }
         dismiss()
     }
 
@@ -407,7 +412,7 @@ private fun PanelContent(
 
         // Loose apps + links grid.
         if (loose.isNotEmpty()) {
-            if (folders.isNotEmpty()) Spacer(Modifier.height(28.dp))
+            if (folders.isNotEmpty()) Spacer(Modifier.height(48.dp))
             val dim by animateFloatAsState(if (dimActive) 0.35f else 1f, label = "appsDim")
             AppGrid(loose, COLUMNS, appMap, showLabels, Modifier.alpha(dim), onLaunch, onOpenLink)
         }
