@@ -298,14 +298,11 @@ private fun BottomBar(
     onOpenSettings: () -> Unit,
 ) {
     Box(Modifier.fillMaxWidth().padding(top = 8.dp).height(1.dp).background(Color.White.copy(alpha = 0.15f)))
+    // Recent apps across the full width.
     Row(
         Modifier.fillMaxWidth().padding(top = 6.dp),
-        verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(2.dp),
     ) {
-        IconButton(onClick = onOpenSettings) {
-            Icon(Icons.Filled.Settings, contentDescription = "Settings", tint = LabelSecondary)
-        }
         val recentApps = recents.mapNotNull { appMap[it] }.take(4)
         recentApps.forEach { app ->
             Box(Modifier.weight(1f)) {
@@ -316,6 +313,10 @@ private fun BottomBar(
             }
         }
         repeat(4 - recentApps.size) { Box(Modifier.weight(1f)) }
+    }
+    // Settings gear, tucked into the bottom-left corner (its own row).
+    IconButton(onClick = onOpenSettings, modifier = Modifier.size(32.dp)) {
+        Icon(Icons.Filled.Settings, contentDescription = "Settings", tint = LabelSecondary, modifier = Modifier.size(20.dp))
     }
 }
 
@@ -346,7 +347,7 @@ private fun PanelContent(
         if (folders.isNotEmpty()) {
             FlowRow(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(14.dp),
+                horizontalArrangement = Arrangement.spacedBy(14.dp, Alignment.CenterHorizontally),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
                 folders.forEach { f ->
@@ -388,7 +389,7 @@ private fun PanelContent(
 
         // Loose apps grid.
         if (apps.isNotEmpty()) {
-            if (folders.isNotEmpty()) Spacer(Modifier.height(14.dp))
+            if (folders.isNotEmpty()) Spacer(Modifier.height(28.dp))
             val dim by animateFloatAsState(if (dimActive) 0.35f else 1f, label = "appsDim")
             AppGrid(apps, COLUMNS, appMap, Modifier.alpha(dim), onLaunch)
         }
@@ -423,25 +424,22 @@ private fun FolderCircle(
     onClick: () -> Unit,
 ) {
     val tint = panelColor(style.brightness).copy(alpha = style.opacity.coerceIn(0f, 1f))
+    // Circular drop shadow (elevation) — round, not the rounded-rect side shadow.
+    val elevation = (maxOf(style.shadowTopDp, style.shadowBottomDp, style.shadowLeftDp, style.shadowRightDp) * 0.6f)
+        .coerceIn(0f, 16f).dp
     Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = modifier) {
-        Box(
-            modifier = Modifier
-                .size(58.dp)
-                .drawBehind { drawSideShadows(style, size.minDimension / 2f) }
-                .clip(CircleShape)
-                .background(tint)
-                .then(
-                    if (style.edgeDp > 0f) {
-                        Modifier.border(style.edgeDp.dp, Color.White.copy(alpha = if (selected) 0.75f else 0.4f), CircleShape)
-                    } else {
-                        Modifier
-                    }
-                )
-                .clickable(onClick = onClick),
-            contentAlignment = Alignment.Center,
+        Surface(
+            modifier = Modifier.size(58.dp).clickable(onClick = onClick),
+            shape = CircleShape,
+            color = tint,
+            shadowElevation = elevation,
+            tonalElevation = 0.dp,
+            border = if (style.edgeDp > 0f) BorderStroke(style.edgeDp.dp, Color.White.copy(alpha = if (selected) 0.75f else 0.4f)) else null,
         ) {
-            val glyph = folder.emoji?.takeIf { it.isNotBlank() } ?: folder.name?.take(1) ?: "📁"
-            Text(glyph, fontSize = 26.sp)
+            Box(contentAlignment = Alignment.Center) {
+                val glyph = folder.emoji?.takeIf { it.isNotBlank() } ?: folder.name?.take(1) ?: "📁"
+                Text(glyph, fontSize = 26.sp)
+            }
         }
         if (!folder.name.isNullOrBlank()) {
             Text(

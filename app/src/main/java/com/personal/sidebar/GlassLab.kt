@@ -182,19 +182,19 @@ private fun GlassPreview(p: PanelConfig, f: FolderConfig) {
                 Modifier.fillMaxSize().padding(12.dp),
                 verticalArrangement = Arrangement.spacedBy(10.dp),
             ) {
-                // Loose apps row.
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    repeat(4) { AppPlaceholder() }
-                }
-                // Folder circles row (the first is "open").
-                Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+                // Folder circles row (centered; the first is "open").
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(14.dp, Alignment.CenterHorizontally)) {
                     PreviewFolderCircle(f, "📁", selected = true)
                     PreviewFolderCircle(f, "🎮", selected = false)
                     PreviewFolderCircle(f, "🎵", selected = false)
                 }
-                Box(Modifier.fillMaxWidth().height(1.dp).background(Color.White.copy(alpha = 0.15f)))
-                // Open folder contents.
+                // Open folder contents, directly below (no divider).
                 PreviewFolderExpanded(f)
+                Spacer(Modifier.height(18.dp))
+                // Loose apps row.
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    repeat(4) { AppPlaceholder() }
+                }
             }
         }
     }
@@ -203,19 +203,18 @@ private fun GlassPreview(p: PanelConfig, f: FolderConfig) {
 @Composable
 private fun PreviewFolderCircle(f: FolderConfig, emoji: String, selected: Boolean) {
     val tint = labTint(f.brightness).copy(alpha = f.opacity.coerceIn(0f, 1f))
-    Box(
-        modifier = Modifier
-            .size(52.dp)
-            .drawBehind { drawSideShadows(f, size.minDimension / 2f) }
-            .clip(CircleShape)
-            .background(tint)
-            .then(
-                if (f.edgeDp > 0f) Modifier.border(f.edgeDp.dp, Color.White.copy(alpha = if (selected) 0.75f else 0.4f), CircleShape)
-                else Modifier
-            ),
-        contentAlignment = Alignment.Center,
+    val elevation = (maxOf(f.shadowTopDp, f.shadowBottomDp, f.shadowLeftDp, f.shadowRightDp) * 0.6f)
+        .coerceIn(0f, 16f).dp
+    Surface(
+        modifier = Modifier.size(52.dp),
+        shape = CircleShape,
+        color = tint,
+        shadowElevation = elevation,
+        border = if (f.edgeDp > 0f) BorderStroke(f.edgeDp.dp, Color.White.copy(alpha = if (selected) 0.75f else 0.4f)) else null,
     ) {
-        Text(emoji, fontSize = 24.sp)
+        Box(contentAlignment = Alignment.Center) {
+            Text(emoji, fontSize = 24.sp)
+        }
     }
 }
 
