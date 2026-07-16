@@ -8,6 +8,7 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -63,11 +64,13 @@ import com.personal.sidebar.model.ItemType
 import com.personal.sidebar.model.SidebarItem
 
 // Fixed dark palette to match the iOS-style translucent launcher look.
-private val PanelBase = Color(0xFF1C1C1E)
-// Folder cards float above the panel in a lighter grey with a drop shadow.
-private val FolderCardBg = Color(0xFF3A3A3C)
+// A lighter tint (vs near-black) so, at a lower opacity, the backdrop blur
+// reads as frosted glass instead of a dark block.
+private val PanelBase = Color(0xFF2C2C2E)
+// Folder cards float above the panel in a clearly lighter grey + drop shadow.
+private val FolderCardBg = Color(0xFF55555C)
 private val LabelPrimary = Color(0xFFF2F2F7)
-private val LabelSecondary = Color(0xFFB9B9C0)
+private val LabelSecondary = Color(0xFFC7C7CF)
 private const val COLUMNS = 4
 
 /**
@@ -104,7 +107,7 @@ fun SidebarPanel(
             Box(
                 Modifier
                     .fillMaxSize()
-                    .background(Color.Black.copy(alpha = 0.35f))
+                    .background(Color.Black.copy(alpha = 0.25f))
                     .clickable(
                         interactionSource = remember { MutableInteractionSource() },
                         indication = null,
@@ -227,8 +230,9 @@ private fun FolderSection(
         modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp),
         shape = RoundedCornerShape(20.dp),
         color = FolderCardBg,
-        shadowElevation = 10.dp,
+        shadowElevation = 16.dp,
         tonalElevation = 0.dp,
+        border = BorderStroke(1.dp, Color.White.copy(alpha = 0.10f)),
     ) {
         Column(Modifier.padding(horizontal = 10.dp, vertical = 6.dp)) {
             Row(

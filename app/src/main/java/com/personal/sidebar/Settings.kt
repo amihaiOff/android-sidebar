@@ -33,8 +33,17 @@ object Settings {
 
     fun config(context: Context): SidebarConfig {
         val raw = prefs(context).getString(KEY_CONFIG, null) ?: return SidebarConfig()
-        return runCatching { json.decodeFromString<SidebarConfig>(raw) }
+        val cfg = runCatching { json.decodeFromString<SidebarConfig>(raw) }
             .getOrDefault(SidebarConfig())
+        // One-time migration: the panel used to default to 0.85 (too opaque to
+        // show the backdrop blur). The slider produces arbitrary floats, so an
+        // exact 0.85 can only be that old untouched default — nudge it to the
+        // new frosty default so existing installs get the lighter look.
+        return if (cfg.panel.opacity == 0.85f) {
+            cfg.copy(panel = cfg.panel.copy(opacity = 0.6f))
+        } else {
+            cfg
+        }
     }
 
     fun setConfig(context: Context, config: SidebarConfig) {

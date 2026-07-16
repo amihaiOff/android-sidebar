@@ -44,8 +44,9 @@ data class HandleConfig(
 /** Appearance of the slide-out panel itself. */
 @Serializable
 data class PanelConfig(
-    /** Background opacity of the panel: 0.35 = very see-through, 1 = solid. */
-    val opacity: Float = 0.85f,
+    /** Background opacity of the panel: 0.35 = very see-through, 1 = solid.
+     *  Kept low by default so the backdrop blur shows as frosted glass. */
+    val opacity: Float = 0.6f,
 )
 
 /** The whole persisted sidebar configuration. */

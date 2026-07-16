@@ -93,7 +93,7 @@ class PanelController(private val context: Context) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && windowManager.isCrossWindowBlurEnabled) {
             val density = context.resources.displayMetrics.density
             params.flags = params.flags or WindowManager.LayoutParams.FLAG_BLUR_BEHIND
-            params.blurBehindRadius = (30 * density).toInt()
+            params.blurBehindRadius = (48 * density).toInt()
         }
         return params
     }
