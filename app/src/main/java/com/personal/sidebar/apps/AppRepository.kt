@@ -44,23 +44,35 @@ object AppRepository {
 
     private fun query(context: Context): List<AppInfo> {
         val pm = context.packageManager
-        val intent = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER)
-        val resolved = pm.queryIntentActivities(intent, 0)
         val self = context.packageName
-        return resolved.asSequence()
-            .mapNotNull { ri ->
-                val pkg = ri.activityInfo?.packageName ?: return@mapNotNull null
-                if (pkg == self) return@mapNotNull null // don't list ourselves
-                AppInfo(
-                    label = ri.loadLabel(pm).toString(),
-                    packageName = pkg,
-                    icon = ri.loadIcon(pm),
-                )
+        val byPackage = LinkedHashMap<String, AppInfo>()
+
+        // Primary path: everything with a launcher entry.
+        val intent = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER)
+        for (ri in pm.queryIntentActivities(intent, 0)) {
+            val pkg = ri.activityInfo?.packageName ?: continue
+            if (pkg == self || byPackage.containsKey(pkg)) continue
+            byPackage[pkg] = AppInfo(ri.loadLabel(pm).toString(), pkg, ri.loadIcon(pm))
+        }
+
+        // Secondary path: installed packages that are launchable but the launcher
+        // category query didn't surface — notably PWAs installed as WebAPKs
+        // (org.chromium.webapk.*), which some launchers hide from the app drawer.
+        runCatching {
+            for (info in pm.getInstalledApplications(0)) {
+                val pkg = info.packageName
+                if (pkg == self || byPackage.containsKey(pkg)) continue
+                val launch = pm.getLaunchIntentForPackage(pkg) ?: continue
+                val cmp = launch.component
+                val label = info.loadLabel(pm).toString()
+                val icon = runCatching {
+                    cmp?.let { pm.getActivityInfo(it, 0).loadIcon(pm) }
+                }.getOrNull() ?: info.loadIcon(pm)
+                byPackage[pkg] = AppInfo(label, pkg, icon)
             }
-            // One entry per package (some apps expose several launcher activities).
-            .distinctBy { it.packageName }
-            .sortedBy { it.label.lowercase() }
-            .toList()
+        }
+
+        return byPackage.values.sortedBy { it.label.lowercase() }
     }
 
     /** Launches an app by package name. Safe to call from an overlay/service. */
