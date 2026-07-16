@@ -1,14 +1,15 @@
 package com.personal.sidebar
 
 import android.Manifest
-import android.content.Context
 import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -16,63 +17,148 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.outlined.RadioButtonUnchecked
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Slider
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.BiasAlignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
-import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import com.personal.sidebar.model.HandleConfig
+import com.personal.sidebar.model.ItemType
+import com.personal.sidebar.model.SidebarConfig
+import com.personal.sidebar.model.SidebarItem
 import com.personal.sidebar.service.SidebarService
 import com.personal.sidebar.ui.theme.SidebarTheme
 import com.personal.sidebar.util.Permissions
 
+/** In-app navigation without a nav library — three simple destinations. */
+private sealed interface Screen {
+    data object Home : Screen
+    data object AddApps : Screen
+    data class FolderEdit(val index: Int?) : Screen
+}
+
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContent {
-            SidebarTheme {
-                Scaffold { padding ->
-                    OnboardingScreen(Modifier.padding(padding))
-                }
+        setContent { SidebarTheme { SidebarRoot() } }
+    }
+}
+
+@Composable
+private fun SidebarRoot() {
+    val context = LocalContext.current
+    var config by remember { mutableStateOf(Settings.config(context)) }
+    var running by remember { mutableStateOf(Settings.enabled(context)) }
+    var screen by remember { mutableStateOf<Screen>(Screen.Home) }
+
+    fun commit(new: SidebarConfig) {
+        config = new
+        Settings.setConfig(context, new)
+        if (running) SidebarService.refresh(context)
+    }
+
+    Scaffold { padding ->
+        val mod = Modifier.padding(padding)
+        when (val s = screen) {
+            Screen.Home -> HomeScreen(
+                modifier = mod,
+                config = config,
+                running = running,
+                onConfigChange = ::commit,
+                onRunningChange = { on ->
+                    running = on
+                    Settings.setEnabled(context, on)
+                    if (on) SidebarService.start(context) else SidebarService.stop(context)
+                },
+                onAddApps = { screen = Screen.AddApps },
+                onNewFolder = { screen = Screen.FolderEdit(null) },
+                onEditFolder = { index -> screen = Screen.FolderEdit(index) },
+                onRemoveItem = { index ->
+                    commit(config.copy(items = config.items.filterIndexed { i, _ -> i != index }))
+                },
+            )
+
+            Screen.AddApps -> AddAppsScreen(
+                modifier = mod,
+                config = config,
+                onDone = { newItems -> commit(config.copy(items = newItems)); screen = Screen.Home },
+                onCancel = { screen = Screen.Home },
+            )
+
+            is Screen.FolderEdit -> {
+                val idx = s.index
+                FolderEditScreen(
+                    modifier = mod,
+                    existing = idx?.let { config.items.getOrNull(it) },
+                    onSave = { folder ->
+                        val items = config.items.toMutableList()
+                        if (idx == null) items.add(folder) else items[idx] = folder
+                        commit(config.copy(items = items)); screen = Screen.Home
+                    },
+                    onDelete = if (idx != null) {
+                        {
+                            commit(config.copy(items = config.items.filterIndexed { i, _ -> i != idx }))
+                            screen = Screen.Home
+                        }
+                    } else null,
+                    onCancel = { screen = Screen.Home },
+                )
             }
         }
     }
 }
 
 @Composable
-private fun OnboardingScreen(modifier: Modifier = Modifier) {
+private fun HomeScreen(
+    modifier: Modifier,
+    config: SidebarConfig,
+    running: Boolean,
+    onConfigChange: (SidebarConfig) -> Unit,
+    onRunningChange: (Boolean) -> Unit,
+    onAddApps: () -> Unit,
+    onNewFolder: () -> Unit,
+    onEditFolder: (Int) -> Unit,
+    onRemoveItem: (Int) -> Unit,
+) {
     val context = LocalContext.current
-
     var overlayGranted by remember { mutableStateOf(Permissions.canDrawOverlays(context)) }
     var batteryExempt by remember { mutableStateOf(Permissions.isIgnoringBatteryOptimizations(context)) }
-    var running by remember { mutableStateOf(Settings.enabled(context)) }
-    var edge by remember { mutableStateOf(Settings.edge(context)) }
 
-    // Re-check permission status whenever we return from a Settings screen.
     val lifecycleOwner = LocalLifecycleOwner.current
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
@@ -87,7 +173,10 @@ private fun OnboardingScreen(modifier: Modifier = Modifier) {
 
     val notifLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission()
-    ) { /* result ignored: the notification is cosmetic, not required */ }
+    ) { }
+
+    val handle = config.handle
+    fun setHandle(h: HandleConfig) = onConfigChange(config.copy(handle = h))
 
     Column(
         modifier = modifier
@@ -95,87 +184,102 @@ private fun OnboardingScreen(modifier: Modifier = Modifier) {
             .verticalScroll(rememberScrollState())
             .padding(20.dp),
     ) {
+        Text("Sidebar", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
         Text(
-            text = "Sidebar",
-            style = MaterialTheme.typography.headlineMedium,
-            fontWeight = FontWeight.Bold,
-        )
-        Text(
-            text = "A swipe-in launcher on the edge of your screen.",
+            "A swipe-in launcher on the edge of your screen.",
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.padding(top = 4.dp, bottom = 20.dp),
+            modifier = Modifier.padding(top = 4.dp, bottom = 16.dp),
         )
 
-        // 1. Overlay permission (required).
-        PermissionCard(
-            index = "1",
-            title = "Draw over other apps",
-            description = "Required. Lets the handle and panel appear on top of anything.",
-            granted = overlayGranted,
-        ) {
-            if (!overlayGranted) {
-                Button(onClick = { context.startActivity(Permissions.overlaySettingsIntent(context)) }) {
-                    Text("Grant")
-                }
-            }
+        // --- Permissions -----------------------------------------------------
+        PermissionCard("Draw over other apps", "Required. Shows the handle and panel on top.", overlayGranted) {
+            if (!overlayGranted) Button(onClick = { context.startActivity(Permissions.overlaySettingsIntent(context)) }) { Text("Grant") }
         }
-
-        // 2. Notifications (optional, Android 13+).
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            PermissionCard(
-                index = "2",
-                title = "Notifications",
-                description = "Optional. Allows the quiet ongoing notification the service uses.",
-                granted = null,
-            ) {
-                OutlinedButton(onClick = { notifLauncher.launch(Manifest.permission.POST_NOTIFICATIONS) }) {
-                    Text("Allow")
-                }
+            PermissionCard("Notifications", "Optional. Allows the quiet ongoing notification.", null) {
+                OutlinedButton(onClick = { notifLauncher.launch(Manifest.permission.POST_NOTIFICATIONS) }) { Text("Allow") }
             }
         }
-
-        // 3. Battery optimization (recommended for OEM killers).
-        PermissionCard(
-            index = "3",
-            title = "Ignore battery optimization",
-            description = "Recommended. Stops aggressive OEMs from killing the handle.",
-            granted = batteryExempt,
-        ) {
-            if (!batteryExempt) {
-                OutlinedButton(onClick = { context.startActivity(Permissions.batteryOptimizationIntent(context)) }) {
-                    Text("Open")
-                }
-            }
+        PermissionCard("Ignore battery optimization", "Recommended. Stops OEMs killing the handle.", batteryExempt) {
+            if (!batteryExempt) OutlinedButton(onClick = { context.startActivity(Permissions.batteryOptimizationIntent(context)) }) { Text("Open") }
         }
 
         Spacer(Modifier.height(8.dp))
-
-        // Edge selector.
+        SectionTitle("Appearance")
         Card(Modifier.fillMaxWidth().padding(vertical = 6.dp)) {
             Column(Modifier.padding(16.dp)) {
-                Text("Handle side", style = MaterialTheme.typography.titleMedium)
-                Row(Modifier.padding(top = 10.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    FilterChip(
-                        selected = edge == Edge.LEFT,
-                        onClick = { edge = Edge.LEFT; applyEdge(context, Edge.LEFT, running) },
-                        label = { Text("Left") },
-                    )
-                    FilterChip(
-                        selected = edge == Edge.RIGHT,
-                        onClick = { edge = Edge.RIGHT; applyEdge(context, Edge.RIGHT, running) },
-                        label = { Text("Right") },
-                    )
+                HandlePreview(handle)
+                Spacer(Modifier.height(16.dp))
+
+                LabeledRow("Side") {
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        FilterChip(handle.edge == Edge.LEFT, { setHandle(handle.copy(edge = Edge.LEFT)) }, { Text("Left") })
+                        FilterChip(handle.edge == Edge.RIGHT, { setHandle(handle.copy(edge = Edge.RIGHT)) }, { Text("Right") })
+                    }
+                }
+
+                Spacer(Modifier.height(12.dp))
+                Text("Color", style = MaterialTheme.typography.labelLarge)
+                Row(Modifier.padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    SWATCHES.forEach { rgb ->
+                        ColorSwatch(
+                            rgb = rgb,
+                            selected = (handle.colorArgb and 0x00FFFFFF) == (rgb and 0x00FFFFFF),
+                            onClick = { setHandle(handle.copy(colorArgb = withRgb(handle.colorArgb, rgb))) },
+                        )
+                    }
+                }
+
+                SliderRow("Opacity", alphaOf(handle.colorArgb).toFloat(), 40f..255f) {
+                    setHandle(handle.copy(colorArgb = withAlpha(handle.colorArgb, it.toInt())))
+                }
+                SliderRow("Width", handle.widthDp.toFloat(), 8f..48f, "${handle.widthDp} dp") {
+                    setHandle(handle.copy(widthDp = it.toInt()))
+                }
+                SliderRow("Length", handle.lengthDp.toFloat(), 60f..400f, "${handle.lengthDp} dp") {
+                    setHandle(handle.copy(lengthDp = it.toInt()))
+                }
+                SliderRow("Position", handle.verticalBias, 0f..1f, positionLabel(handle.verticalBias)) {
+                    setHandle(handle.copy(verticalBias = it))
                 }
             }
         }
 
-        // Enable switch.
+        // --- Apps & folders --------------------------------------------------
+        Spacer(Modifier.height(8.dp))
+        SectionTitle("Apps & folders")
         Card(Modifier.fillMaxWidth().padding(vertical = 6.dp)) {
-            Row(
-                Modifier.fillMaxWidth().padding(16.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
+            Column(Modifier.padding(16.dp)) {
+                if (config.items.isEmpty()) {
+                    Text(
+                        "No apps added yet. Use the buttons below to choose which apps appear in the panel.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                } else {
+                    val appMap = rememberAppMap()
+                    config.items.forEachIndexed { index, item ->
+                        ItemRow(
+                            item = item,
+                            appMap = appMap,
+                            onEdit = if (item.type == ItemType.FOLDER) ({ onEditFolder(index) }) else null,
+                            onRemove = { onRemoveItem(index) },
+                        )
+                    }
+                }
+                Spacer(Modifier.height(12.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Button(onClick = onAddApps) { Text("Add apps") }
+                    OutlinedButton(onClick = onNewFolder) { Text("New folder") }
+                }
+            }
+        }
+
+        // --- Enable ----------------------------------------------------------
+        Spacer(Modifier.height(8.dp))
+        Card(Modifier.fillMaxWidth().padding(vertical = 6.dp)) {
+            Row(Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
                     Text("Enable sidebar", style = MaterialTheme.typography.titleMedium)
                     Text(
@@ -184,38 +288,132 @@ private fun OnboardingScreen(modifier: Modifier = Modifier) {
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
-                Switch(
-                    checked = running,
-                    enabled = overlayGranted,
-                    onCheckedChange = { on ->
-                        running = on
-                        Settings.setEnabled(context, on)
-                        if (on) SidebarService.start(context) else SidebarService.stop(context)
-                    },
-                )
+                Switch(checked = running, enabled = overlayGranted, onCheckedChange = onRunningChange)
             }
         }
     }
 }
 
-private fun applyEdge(context: Context, edge: Edge, running: Boolean) {
-    Settings.setEdge(context, edge)
-    if (running) SidebarService.updateEdge(context)
+// ---- Appearance building blocks -------------------------------------------
+
+private val SWATCHES = listOf(
+    0xFF4C5BD4.toInt(), 0xFF2196F3.toInt(), 0xFF009688.toInt(), 0xFF4CAF50.toInt(),
+    0xFFFF9800.toInt(), 0xFFF44336.toInt(), 0xFF9C27B0.toInt(), 0xFF607D8B.toInt(),
+    0xFFFFFFFF.toInt(), 0xFF111111.toInt(),
+)
+
+private fun alphaOf(argb: Int): Int = (argb ushr 24) and 0xFF
+private fun withAlpha(argb: Int, alpha: Int): Int = (alpha shl 24) or (argb and 0x00FFFFFF)
+private fun withRgb(argb: Int, rgb: Int): Int = (argb.toLong() and 0xFF000000L).toInt() or (rgb and 0x00FFFFFF)
+
+private fun positionLabel(bias: Float): String = when {
+    bias < 0.2f -> "Top"
+    bias > 0.8f -> "Bottom"
+    bias in 0.4f..0.6f -> "Center"
+    else -> "${(bias * 100).toInt()}%"
 }
 
 @Composable
-private fun PermissionCard(
-    index: String,
-    title: String,
-    description: String,
-    granted: Boolean?,
-    action: @Composable () -> Unit,
+private fun HandlePreview(handle: HandleConfig) {
+    Box(
+        Modifier
+            .fillMaxWidth()
+            .height(160.dp)
+            .clip(RoundedCornerShape(16.dp))
+            .background(MaterialTheme.colorScheme.surfaceVariant),
+    ) {
+        val horiz = if (handle.edge == Edge.LEFT) -1f else 1f
+        val vert = handle.verticalBias * 2f - 1f
+        val previewShape = if (handle.edge == Edge.LEFT) {
+            RoundedCornerShape(topEnd = 8.dp, bottomEnd = 8.dp)
+        } else {
+            RoundedCornerShape(topStart = 8.dp, bottomStart = 8.dp)
+        }
+        Box(
+            Modifier
+                .align(BiasAlignment(horiz, vert))
+                .width(handle.widthDp.dp)
+                .height((handle.lengthDp * 0.28f).dp.coerceAtLeastDp())
+                .clip(previewShape)
+                .background(Color(handle.colorArgb)),
+        )
+    }
+}
+
+// Keep the preview pill from vanishing at tiny lengths.
+private fun androidx.compose.ui.unit.Dp.coerceAtLeastDp() = if (value < 12f) 12.dp else this
+
+@Composable
+private fun ColorSwatch(rgb: Int, selected: Boolean, onClick: () -> Unit) {
+    Surface(
+        modifier = Modifier.size(32.dp),
+        shape = RoundedCornerShape(50),
+        color = Color(rgb or 0xFF000000.toInt()),
+        border = if (selected) androidx.compose.foundation.BorderStroke(3.dp, MaterialTheme.colorScheme.onSurface) else null,
+        onClick = onClick,
+    ) {}
+}
+
+@Composable
+private fun SliderRow(
+    label: String,
+    value: Float,
+    range: ClosedFloatingPointRange<Float>,
+    valueLabel: String? = null,
+    onChange: (Float) -> Unit,
 ) {
+    Column(Modifier.padding(top = 8.dp)) {
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+            Text(label, style = MaterialTheme.typography.labelLarge)
+            if (valueLabel != null) Text(valueLabel, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+        Slider(value = value.coerceIn(range.start, range.endInclusive), onValueChange = onChange, valueRange = range)
+    }
+}
+
+@Composable
+private fun LabeledRow(label: String, content: @Composable () -> Unit) {
+    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+        Text(label, style = MaterialTheme.typography.labelLarge, modifier = Modifier.width(60.dp))
+        content()
+    }
+}
+
+@Composable
+private fun SectionTitle(text: String) {
+    Text(text, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(top = 8.dp, start = 2.dp))
+}
+
+@Composable
+private fun ItemRow(
+    item: SidebarItem,
+    appMap: Map<String, com.personal.sidebar.apps.AppInfo>?,
+    onEdit: (() -> Unit)?,
+    onRemove: () -> Unit,
+) {
+    Row(Modifier.fillMaxWidth().padding(vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+        if (item.type == ItemType.FOLDER) {
+            Icon(Icons.Filled.Folder, contentDescription = null, modifier = Modifier.size(36.dp), tint = MaterialTheme.colorScheme.primary)
+            Spacer(Modifier.width(12.dp))
+            Column(Modifier.weight(1f)) {
+                Text(item.name ?: "Folder", style = MaterialTheme.typography.bodyLarge)
+                Text("${item.packages.size} apps", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            if (onEdit != null) IconButton(onClick = onEdit) { Icon(Icons.Filled.Edit, contentDescription = "Edit") }
+        } else {
+            val app = item.packageName?.let { appMap?.get(it) }
+            AppIconSmall(item.packageName, appMap, 36)
+            Spacer(Modifier.width(12.dp))
+            Text(app?.label ?: item.packageName ?: "Unknown", style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
+        }
+        IconButton(onClick = onRemove) { Icon(Icons.Filled.Delete, contentDescription = "Remove") }
+    }
+}
+
+@Composable
+private fun PermissionCard(title: String, description: String, granted: Boolean?, action: @Composable () -> Unit) {
     Card(Modifier.fillMaxWidth().padding(vertical = 6.dp)) {
-        Row(
-            Modifier.fillMaxWidth().padding(16.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
+        Row(Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
             if (granted != null) {
                 Icon(
                     imageVector = if (granted) Icons.Filled.CheckCircle else Icons.Outlined.RadioButtonUnchecked,
@@ -225,12 +423,8 @@ private fun PermissionCard(
                 Spacer(Modifier.width(12.dp))
             }
             Column(Modifier.weight(1f)) {
-                Text("$index. $title", style = MaterialTheme.typography.titleMedium)
-                Text(
-                    description,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
+                Text(title, style = MaterialTheme.typography.titleMedium)
+                Text(description, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
             Spacer(Modifier.width(12.dp))
             action()

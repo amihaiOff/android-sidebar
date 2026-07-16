@@ -26,6 +26,22 @@ dynamic color). No Play Store, no Android Studio required.
 Event-driven by construction: one idle handle window, panel inflated only on a
 trigger and destroyed on dismiss, zero polling/timers.
 
+## Customizing
+
+Everything is configured from the app's home screen and applies live (the
+running handle re-arms on each change):
+
+- **Handle appearance** — side (left/right), color (swatches + opacity), width,
+  length, and vertical position along the edge, with a live preview.
+- **Curated apps** — the panel is **empty by default**; you choose which apps
+  appear via **Add apps** (a searchable, multi-select list). It never dumps
+  every installed app on you.
+- **Folders** — group apps with **New folder**: give it a name, pick members,
+  and it shows as a tile in the panel that drills into its own grid. Edit or
+  delete folders from the same screen.
+
+Config is stored as JSON in SharedPreferences (`kotlinx.serialization`).
+
 ## Install on your phone (via Obtainium)
 
 Every push builds an APK in GitHub Actions and publishes it to a rolling
@@ -93,9 +109,11 @@ this key for anything you publish.
 
 ```
 app/src/main/java/com/personal/sidebar/
-├─ MainActivity.kt            # onboarding + permission deep-links + enable toggle
+├─ MainActivity.kt            # home: permissions, appearance controls, items, enable
+├─ ManageScreens.kt          # app picker + folder editor (searchable multi-select)
 ├─ SidebarApp.kt              # Application; notification channel
-├─ Settings.kt                # persisted edge side + enabled flag
+├─ Settings.kt               # enabled flag + JSON-persisted SidebarConfig
+├─ model/SidebarConfig.kt     # handle appearance + curated apps/folders model
 ├─ apps/AppRepository.kt      # query + launch installed apps (cached)
 ├─ overlay/
 │  ├─ EdgeHandle.kt           # the idle trigger strip

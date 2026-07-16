@@ -7,7 +7,7 @@ import android.view.Gravity
 import android.view.KeyEvent
 import android.view.WindowManager
 import androidx.compose.ui.platform.ComposeView
-import com.personal.sidebar.Edge
+import com.personal.sidebar.model.SidebarConfig
 import com.personal.sidebar.ui.SidebarPanel
 
 /**
@@ -27,14 +27,15 @@ class PanelController(private val context: Context) {
 
     val isShowing: Boolean get() = composeView != null
 
-    fun show(edge: Edge) {
+    fun show(config: SidebarConfig) {
         if (composeView != null) return
 
         val newHost = OverlayViewHost()
         val view = ComposeView(context).apply {
             setContent {
                 SidebarPanel(
-                    edge = edge,
+                    edge = config.handle.edge,
+                    items = config.items,
                     registerDismiss = { dismissTrigger = it },
                     onDismissed = { hide() },
                 )

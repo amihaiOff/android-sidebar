@@ -32,16 +32,16 @@ class SidebarService : Service() {
         startForegroundInternal()
         panel = PanelController(this)
         edgeHandle = EdgeHandle(this) {
-            if (!panel.isShowing) panel.show(Settings.edge(this))
+            if (!panel.isShowing) panel.show(Settings.config(this))
         }
-        edgeHandle.show(Settings.edge(this))
+        edgeHandle.show(Settings.config(this).handle)
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        if (intent?.action == ACTION_UPDATE_EDGE) {
-            // Edge changed while running: re-place the handle, drop any open panel.
+        if (intent?.action == ACTION_REFRESH) {
+            // Config changed while running: re-place the handle, drop any open panel.
             panel.hide()
-            edgeHandle.show(Settings.edge(this))
+            edgeHandle.show(Settings.config(this).handle)
         }
         return START_STICKY
     }
@@ -82,7 +82,7 @@ class SidebarService : Service() {
 
     companion object {
         private const val NOTIFICATION_ID = 42
-        const val ACTION_UPDATE_EDGE = "com.personal.sidebar.UPDATE_EDGE"
+        const val ACTION_REFRESH = "com.personal.sidebar.REFRESH"
 
         fun start(context: Context) {
             ContextCompat.startForegroundService(
@@ -94,10 +94,11 @@ class SidebarService : Service() {
             context.stopService(Intent(context, SidebarService::class.java))
         }
 
-        fun updateEdge(context: Context) {
+        /** Re-read config and re-place the handle (call after any settings change). */
+        fun refresh(context: Context) {
             ContextCompat.startForegroundService(
                 context,
-                Intent(context, SidebarService::class.java).setAction(ACTION_UPDATE_EDGE),
+                Intent(context, SidebarService::class.java).setAction(ACTION_REFRESH),
             )
         }
     }

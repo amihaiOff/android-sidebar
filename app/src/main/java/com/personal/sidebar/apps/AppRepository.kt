@@ -36,6 +36,10 @@ object AppRepository {
         }
     }
 
+    /** All launchable apps keyed by package name, for resolving curated items. */
+    suspend fun map(context: Context, refresh: Boolean = false): Map<String, AppInfo> =
+        load(context, refresh).associateBy { it.packageName }
+
     fun invalidate() { cache = null }
 
     private fun query(context: Context): List<AppInfo> {

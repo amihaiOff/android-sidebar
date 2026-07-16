@@ -1,30 +1,43 @@
 package com.personal.sidebar
 
 import android.content.Context
+import com.personal.sidebar.model.SidebarConfig
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.encodeToString
+import kotlinx.serialization.json.Json
 
 /** Which screen edge the handle lives on. */
+@Serializable
 enum class Edge { LEFT, RIGHT }
 
-/** Tiny SharedPreferences wrapper for the two things we persist. */
+/** Persists the on/off flag and the full [SidebarConfig] (as JSON). */
 object Settings {
     private const val PREFS = "sidebar_prefs"
-    private const val KEY_EDGE = "edge"
     private const val KEY_ENABLED = "enabled"
+    private const val KEY_CONFIG = "config_json"
+
+    private val json = Json {
+        ignoreUnknownKeys = true
+        encodeDefaults = true
+    }
 
     private fun prefs(context: Context) =
         context.applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-
-    fun edge(context: Context): Edge =
-        if (prefs(context).getString(KEY_EDGE, Edge.RIGHT.name) == Edge.LEFT.name) Edge.LEFT else Edge.RIGHT
-
-    fun setEdge(context: Context, edge: Edge) {
-        prefs(context).edit().putString(KEY_EDGE, edge.name).apply()
-    }
 
     /** True once the user has turned the sidebar on; used to re-arm after reboot. */
     fun enabled(context: Context): Boolean = prefs(context).getBoolean(KEY_ENABLED, false)
 
     fun setEnabled(context: Context, enabled: Boolean) {
         prefs(context).edit().putBoolean(KEY_ENABLED, enabled).apply()
+    }
+
+    fun config(context: Context): SidebarConfig {
+        val raw = prefs(context).getString(KEY_CONFIG, null) ?: return SidebarConfig()
+        return runCatching { json.decodeFromString<SidebarConfig>(raw) }
+            .getOrDefault(SidebarConfig())
+    }
+
+    fun setConfig(context: Context, config: SidebarConfig) {
+        prefs(context).edit().putString(KEY_CONFIG, json.encodeToString(config)).apply()
     }
 }
