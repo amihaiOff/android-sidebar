@@ -48,6 +48,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
@@ -73,6 +74,38 @@ private val LabelSecondary = Color(0xFFC7C7CF)
 private fun panelColor(brightness: Float): Color {
     val c = (16 + brightness.coerceIn(0f, 1f) * 239).toInt().coerceIn(0, 255)
     return Color(c, c, c)
+}
+
+/** Draws soft drop shadows extending outward on each side of a card. */
+internal fun androidx.compose.ui.graphics.drawscope.DrawScope.drawSideShadows(style: FolderConfig) {
+    val shadow = Color.Black.copy(alpha = 0.5f)
+    val clear = Color.Transparent
+    val w = size.width
+    val h = size.height
+    val top = style.shadowTopDp.dp.toPx()
+    val bottom = style.shadowBottomDp.dp.toPx()
+    val left = style.shadowLeftDp.dp.toPx()
+    val right = style.shadowRightDp.dp.toPx()
+    if (top > 0f) drawRect(
+        androidx.compose.ui.graphics.Brush.verticalGradient(listOf(clear, shadow), startY = -top, endY = 0f),
+        topLeft = androidx.compose.ui.geometry.Offset(0f, -top),
+        size = androidx.compose.ui.geometry.Size(w, top),
+    )
+    if (bottom > 0f) drawRect(
+        androidx.compose.ui.graphics.Brush.verticalGradient(listOf(shadow, clear), startY = h, endY = h + bottom),
+        topLeft = androidx.compose.ui.geometry.Offset(0f, h),
+        size = androidx.compose.ui.geometry.Size(w, bottom),
+    )
+    if (left > 0f) drawRect(
+        androidx.compose.ui.graphics.Brush.horizontalGradient(listOf(clear, shadow), startX = -left, endX = 0f),
+        topLeft = androidx.compose.ui.geometry.Offset(-left, 0f),
+        size = androidx.compose.ui.geometry.Size(left, h),
+    )
+    if (right > 0f) drawRect(
+        androidx.compose.ui.graphics.Brush.horizontalGradient(listOf(shadow, clear), startX = w, endX = w + right),
+        topLeft = androidx.compose.ui.geometry.Offset(w, 0f),
+        size = androidx.compose.ui.geometry.Size(right, h),
+    )
 }
 private const val COLUMNS = 4
 
@@ -250,14 +283,17 @@ private fun FolderSection(
     onLaunch: (String) -> Unit,
 ) {
     // Nested glass: a closer layer than the panel — its own (usually more
-    // opaque) tint + a bright edge + a shadow give it depth.
+    // opaque) tint + a bright edge + per-side drop shadows give it depth.
     val folderTint = panelColor(style.brightness).copy(alpha = style.opacity.coerceIn(0f, 1f))
     val shape = RoundedCornerShape(style.cornerDp.dp)
     Surface(
-        modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp),
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 6.dp)
+            .drawBehind { drawSideShadows(style) },
         shape = shape,
         color = folderTint,
-        shadowElevation = 14.dp,
+        shadowElevation = 0.dp, // custom per-side shadows below
         tonalElevation = 0.dp,
         border = if (style.edgeDp > 0f) BorderStroke(style.edgeDp.dp, Color.White.copy(alpha = 0.4f)) else null,
     ) {

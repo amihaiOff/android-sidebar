@@ -74,6 +74,11 @@ data class FolderConfig(
     val columns: Int = 3,
     /** Folder corner radius in dp. */
     val cornerDp: Int = 20,
+    /** Drop-shadow extent (dp) on each side of the folder card. */
+    val shadowTopDp: Float = 0f,
+    val shadowBottomDp: Float = 12f,
+    val shadowLeftDp: Float = 4f,
+    val shadowRightDp: Float = 4f,
 )
 
 /** The whole persisted sidebar configuration. */

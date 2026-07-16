@@ -46,6 +46,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.personal.sidebar.model.FolderConfig
 import com.personal.sidebar.model.PanelConfig
+import com.personal.sidebar.ui.drawSideShadows
 import kotlin.math.roundToInt
 
 private val LAB_SWATCHES = listOf(
@@ -128,6 +129,11 @@ internal fun GlassLabScreen(
         LabSlider("Folder edge", f.edgeDp, 0f..4f, "${f.edgeDp.roundToInt()} dp") { setF(f.copy(edgeDp = it)) }
         LabSlider("Folder columns", f.columns.toFloat(), 2f..5f, "${f.columns}") { setF(f.copy(columns = it.roundToInt())) }
         LabSlider("Folder corners", f.cornerDp.toFloat(), 0f..32f, "${f.cornerDp} dp") { setF(f.copy(cornerDp = it.roundToInt())) }
+        Text("Folder shadow", style = MaterialTheme.typography.labelLarge, modifier = Modifier.padding(top = 8.dp))
+        LabSlider("Shadow top", f.shadowTopDp, 0f..30f, "${f.shadowTopDp.roundToInt()} dp") { setF(f.copy(shadowTopDp = it)) }
+        LabSlider("Shadow bottom", f.shadowBottomDp, 0f..30f, "${f.shadowBottomDp.roundToInt()} dp") { setF(f.copy(shadowBottomDp = it)) }
+        LabSlider("Shadow left", f.shadowLeftDp, 0f..30f, "${f.shadowLeftDp.roundToInt()} dp") { setF(f.copy(shadowLeftDp = it)) }
+        LabSlider("Shadow right", f.shadowRightDp, 0f..30f, "${f.shadowRightDp.roundToInt()} dp") { setF(f.copy(shadowRightDp = it)) }
     }
 }
 
@@ -191,9 +197,9 @@ private fun PreviewFolder(f: FolderConfig) {
     Surface(
         shape = shape,
         color = folderTint,
-        shadowElevation = 12.dp,
+        shadowElevation = 0.dp,
         border = if (f.edgeDp > 0f) BorderStroke(f.edgeDp.dp, Color.White.copy(alpha = 0.4f)) else null,
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier.fillMaxWidth().drawBehind { drawSideShadows(f) },
     ) {
         Column(Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Box(

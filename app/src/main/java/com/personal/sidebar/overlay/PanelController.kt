@@ -3,8 +3,13 @@ package com.personal.sidebar.overlay
 import android.annotation.SuppressLint
 import android.app.Dialog
 import android.content.Context
+import android.graphics.Canvas
 import android.graphics.Color
-import android.graphics.drawable.GradientDrawable
+import android.graphics.ColorFilter
+import android.graphics.Outline
+import android.graphics.Path
+import android.graphics.PixelFormat
+import android.graphics.drawable.Drawable
 import android.os.Build
 import android.view.Gravity
 import android.view.KeyEvent
@@ -14,6 +19,38 @@ import androidx.core.view.WindowCompat
 import com.personal.sidebar.Edge
 import com.personal.sidebar.model.SidebarConfig
 import com.personal.sidebar.ui.SidebarPanel
+
+/**
+ * A fully transparent window background whose [getOutline] is a rounded rect
+ * with the given per-corner [radii]. The window's background blur is clipped to
+ * this outline, giving the panel rounded (blurred) corners.
+ */
+private class RoundedOutlineDrawable(private val radii: FloatArray) : Drawable() {
+    override fun draw(canvas: Canvas) { /* transparent */ }
+
+    override fun getOutline(outline: Outline) {
+        val b = bounds
+        if (b.isEmpty) return
+        val path = Path().apply {
+            addRoundRect(
+                b.left.toFloat(), b.top.toFloat(), b.right.toFloat(), b.bottom.toFloat(),
+                radii, Path.Direction.CW,
+            )
+        }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            outline.setPath(path)
+        } else {
+            @Suppress("DEPRECATION")
+            outline.setConvexPath(path)
+        }
+    }
+
+    override fun setAlpha(alpha: Int) {}
+    override fun setColorFilter(colorFilter: ColorFilter?) {}
+
+    @Deprecated("Deprecated in Java", ReplaceWith("PixelFormat.TRANSLUCENT"))
+    override fun getOpacity(): Int = PixelFormat.TRANSLUCENT
+}
 
 /** The panel window spans this fraction of the screen width (capped in dp). */
 private const val PANEL_WIDTH_FRACTION = 0.72f
@@ -92,29 +129,32 @@ class PanelController(private val context: Context) {
             WindowCompat.setDecorFitsSystemWindows(this, false)
             statusBarColor = Color.TRANSPARENT
             navigationBarColor = Color.TRANSPARENT
-            // Transparent, rounded background: defines the window outline the
-            // background blur is clipped to (so the blur has rounded corners).
+            // Transparent background whose OUTLINE is a proper rounded rect, so
+            // the backdrop blur is clipped to rounded corners. (A GradientDrawable
+            // with per-corner radii reports only a rectangular outline, which is
+            // why the corner setting had no visible effect on the blur.)
             val r = config.panel.cornerDp * density
             val radii = if (edge == Edge.LEFT) {
                 floatArrayOf(0f, 0f, r, r, r, r, 0f, 0f)
             } else {
                 floatArrayOf(r, r, 0f, 0f, 0f, 0f, r, r)
             }
-            setBackgroundDrawable(GradientDrawable().apply {
-                setColor(Color.TRANSPARENT)
-                cornerRadii = radii
-            })
+            setBackgroundDrawable(RoundedOutlineDrawable(radii))
             clearFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND) // never dim the rest of the screen
             setDimAmount(0f)
             addFlags(
                 WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
+                    WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS or
                     WindowManager.LayoutParams.FLAG_HARDWARE_ACCELERATED
             )
             val lp = attributes
             lp.width = width
             lp.height = WindowManager.LayoutParams.MATCH_PARENT
             lp.gravity = Gravity.TOP or if (edge == Edge.LEFT) Gravity.START else Gravity.END
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                lp.layoutInDisplayCutoutMode =
+                    WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_ALWAYS
+            } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
                 lp.layoutInDisplayCutoutMode =
                     WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES
             }
