@@ -29,7 +29,12 @@ jobs:
       # later commit always gets a higher version.
       - name: Compute version
         id: ver
-        run: echo "code=$(git rev-list --count HEAD)" >> "$GITHUB_OUTPUT"
+        run: |
+          code=$(git rev-list --count HEAD 2>/dev/null || echo "")
+          # Never emit an empty version (would crash the build and break the tag).
+          if [ -z "$code" ]; then code="${{ github.run_number }}"; fi
+          echo "code=$code" >> "$GITHUB_OUTPUT"
+          echo "Version code: $code"
 
       - name: Set up JDK 21
         uses: actions/setup-java@v4

@@ -28,7 +28,7 @@ android {
         targetSdk = 35
         // CI passes the run number so every build has a higher versionCode:
         // Android then treats each new APK as an update and Obtainium notices it.
-        val ciVersion = (System.getenv("VERSION_CODE") ?: "1").toInt()
+        val ciVersion = (System.getenv("VERSION_CODE")?.trim()?.takeIf { it.isNotEmpty() } ?: "1").toInt()
         versionCode = ciVersion
         versionName = "1.0.$ciVersion"
     }
