@@ -8,6 +8,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
+import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -25,6 +26,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.DragHandle
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.outlined.RadioButtonUnchecked
@@ -42,18 +44,26 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.BiasAlignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.zIndex
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
@@ -111,6 +121,7 @@ private fun SidebarRoot() {
                 onRemoveItem = { index ->
                     commit(config.copy(items = config.items.filterIndexed { i, _ -> i != index }))
                 },
+                onReorder = { newItems -> commit(config.copy(items = newItems)) },
             )
 
             Screen.AddApps -> AddAppsScreen(
@@ -154,6 +165,7 @@ private fun HomeScreen(
     onNewFolder: () -> Unit,
     onEditFolder: (Int) -> Unit,
     onRemoveItem: (Int) -> Unit,
+    onReorder: (List<SidebarItem>) -> Unit,
 ) {
     val context = LocalContext.current
     var overlayGranted by remember { mutableStateOf(Permissions.canDrawOverlays(context)) }
@@ -261,15 +273,19 @@ private fun HomeScreen(
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 } else {
-                    val appMap = rememberAppMap()
-                    config.items.forEachIndexed { index, item ->
-                        ItemRow(
-                            item = item,
-                            appMap = appMap,
-                            onEdit = if (item.type == ItemType.FOLDER) ({ onEditFolder(index) }) else null,
-                            onRemove = { onRemoveItem(index) },
-                        )
-                    }
+                    Text(
+                        "Long-press the handle to drag and reorder.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(bottom = 8.dp),
+                    )
+                    ReorderableItems(
+                        items = config.items,
+                        appMap = rememberAppMap(),
+                        onEditFolder = onEditFolder,
+                        onRemove = onRemoveItem,
+                        onReorder = onReorder,
+                    )
                 }
                 Spacer(Modifier.height(12.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -387,30 +403,111 @@ private fun SectionTitle(text: String) {
     Text(text, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(top = 8.dp, start = 2.dp))
 }
 
+/**
+ * A vertically draggable list of the curated items. Long-press the drag handle
+ * to pick a row up; it follows the finger and swaps with neighbours as it
+ * crosses their midpoints. The new order is committed once on drag end (not on
+ * every micro-swap), so the running sidebar isn't refreshed mid-drag.
+ */
 @Composable
-private fun ItemRow(
-    item: SidebarItem,
+private fun ReorderableItems(
+    items: List<SidebarItem>,
     appMap: Map<String, com.personal.sidebar.apps.AppInfo>?,
-    onEdit: (() -> Unit)?,
-    onRemove: () -> Unit,
+    onEditFolder: (Int) -> Unit,
+    onRemove: (Int) -> Unit,
+    onReorder: (List<SidebarItem>) -> Unit,
 ) {
-    Row(Modifier.fillMaxWidth().padding(vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
-        if (item.type == ItemType.FOLDER) {
-            Icon(Icons.Filled.Folder, contentDescription = null, modifier = Modifier.size(36.dp), tint = MaterialTheme.colorScheme.primary)
-            Spacer(Modifier.width(12.dp))
-            Column(Modifier.weight(1f)) {
-                Text(item.name ?: "Folder", style = MaterialTheme.typography.bodyLarge)
-                Text("${item.packages.size} apps", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            }
-            if (onEdit != null) IconButton(onClick = onEdit) { Icon(Icons.Filled.Edit, contentDescription = "Edit") }
-        } else {
-            val app = item.packageName?.let { appMap?.get(it) }
-            AppIconSmall(item.packageName, appMap, 36)
-            Spacer(Modifier.width(12.dp))
-            Text(app?.label ?: item.packageName ?: "Unknown", style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
+    // Working copy so drags mutate locally; synced from source when not dragging.
+    val working = remember { mutableStateListOf<SidebarItem>().apply { addAll(items) } }
+    var draggingIndex by remember { mutableStateOf<Int?>(null) }
+    var dragOffset by remember { mutableStateOf(0f) }
+    var rowHeight by remember { mutableStateOf(0f) }
+
+    LaunchedEffect(items) {
+        if (draggingIndex == null) {
+            working.clear(); working.addAll(items)
         }
-        IconButton(onClick = onRemove) { Icon(Icons.Filled.Delete, contentDescription = "Remove") }
     }
+
+    Column(Modifier.fillMaxWidth()) {
+        working.forEachIndexed { index, item ->
+            key(itemKey(item)) {
+                val currentIndex by rememberUpdatedState(index)
+                val count by rememberUpdatedState(working.size)
+                val isDragging = draggingIndex == index
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .onSizeChanged { if (rowHeight == 0f) rowHeight = it.height.toFloat() }
+                        .zIndex(if (isDragging) 1f else 0f)
+                        .graphicsLayer { translationY = if (isDragging) dragOffset else 0f }
+                        .background(
+                            if (isDragging) MaterialTheme.colorScheme.surfaceVariant else Color.Transparent,
+                            RoundedCornerShape(12.dp),
+                        )
+                        .padding(vertical = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Icon(
+                        Icons.Filled.DragHandle,
+                        contentDescription = "Reorder",
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier
+                            .padding(end = 8.dp)
+                            .pointerInput(Unit) {
+                                detectDragGesturesAfterLongPress(
+                                    onDragStart = { draggingIndex = currentIndex; dragOffset = 0f },
+                                    onDragEnd = {
+                                        draggingIndex = null; dragOffset = 0f
+                                        onReorder(working.toList())
+                                    },
+                                    onDragCancel = {
+                                        draggingIndex = null; dragOffset = 0f
+                                        onReorder(working.toList())
+                                    },
+                                    onDrag = { change, amount ->
+                                        change.consume()
+                                        dragOffset += amount.y
+                                        val cur = draggingIndex
+                                        val h = if (rowHeight > 0f) rowHeight else 1f
+                                        if (cur != null) {
+                                            if (dragOffset > h / 2 && cur < count - 1) {
+                                                working.add(cur + 1, working.removeAt(cur))
+                                                draggingIndex = cur + 1; dragOffset -= h
+                                            } else if (dragOffset < -h / 2 && cur > 0) {
+                                                working.add(cur - 1, working.removeAt(cur))
+                                                draggingIndex = cur - 1; dragOffset += h
+                                            }
+                                        }
+                                    },
+                                )
+                            },
+                    )
+                    if (item.type == ItemType.FOLDER) {
+                        Icon(Icons.Filled.Folder, contentDescription = null, modifier = Modifier.size(36.dp), tint = MaterialTheme.colorScheme.primary)
+                        Spacer(Modifier.width(12.dp))
+                        Column(Modifier.weight(1f)) {
+                            Text(item.name ?: "Folder", style = MaterialTheme.typography.bodyLarge)
+                            Text("${item.packages.size} apps", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                        IconButton(onClick = { onEditFolder(currentIndex) }) { Icon(Icons.Filled.Edit, contentDescription = "Edit") }
+                    } else {
+                        val app = item.packageName?.let { appMap?.get(it) }
+                        AppIconSmall(item.packageName, appMap, 36)
+                        Spacer(Modifier.width(12.dp))
+                        Text(app?.label ?: item.packageName ?: "Unknown", style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
+                    }
+                    IconButton(onClick = { onRemove(currentIndex) }) { Icon(Icons.Filled.Delete, contentDescription = "Remove") }
+                }
+            }
+        }
+    }
+}
+
+/** Stable identity for reorder/keying. */
+private fun itemKey(item: SidebarItem): String = when (item.type) {
+    ItemType.APP -> "app:${item.packageName}"
+    ItemType.FOLDER -> "folder:${item.name}:${item.packages.joinToString(",")}"
 }
 
 @Composable

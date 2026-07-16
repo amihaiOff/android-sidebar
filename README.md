@@ -36,9 +36,13 @@ running handle re-arms on each change):
 - **Curated apps** — the panel is **empty by default**; you choose which apps
   appear via **Add apps** (a searchable, multi-select list). It never dumps
   every installed app on you.
-- **Folders** — group apps with **New folder**: give it a name, pick members,
-  and it shows as a tile in the panel that drills into its own grid. Edit or
-  delete folders from the same screen.
+- **Folders** — group apps with **New folder**: give it a name, pick members.
+  In the panel a folder shows as an expandable dropdown section (title +
+  chevron) that reveals its apps inline. Edit or delete folders from settings.
+- **Reorder** — long-press the drag handle on any item in the settings list to
+  drag it up or down; the new order is what the panel shows.
+- **Transparency** — a Panel opacity slider controls how see-through the panel
+  background is.
 
 Config is stored as JSON in SharedPreferences (`kotlinx.serialization`).
 
