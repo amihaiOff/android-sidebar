@@ -21,13 +21,16 @@ data class SidebarItem(
     val emoji: String? = null,
     /** URL opened for [ItemType.LINK] (launches a PWA/WebAPK if installed). */
     val url: String? = null,
+    /** For [ItemType.LINK]: force the URL to open in this app (e.g. the browser
+     *  that installed the PWA), so it launches standalone. Null = system default. */
+    val targetPackage: String? = null,
     /** Member package names for [ItemType.FOLDER] / [ItemType.GROUP]. */
     val packages: List<String> = emptyList(),
 ) {
     companion object {
         fun app(pkg: String) = SidebarItem(ItemType.APP, packageName = pkg)
-        fun link(name: String, url: String, emoji: String? = null) =
-            SidebarItem(ItemType.LINK, name = name, emoji = emoji, url = url)
+        fun link(name: String, url: String, emoji: String? = null, targetPackage: String? = null) =
+            SidebarItem(ItemType.LINK, name = name, emoji = emoji, url = url, targetPackage = targetPackage)
         fun folder(name: String, packages: List<String>, emoji: String? = null) =
             SidebarItem(ItemType.FOLDER, name = name, emoji = emoji, packages = packages)
         fun group(name: String, packages: List<String>) =

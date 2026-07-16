@@ -184,20 +184,26 @@ fun SidebarPanel(
         )
         dismiss()
     }
-    // Open a web link / PWA. Prefer an installed app that handles the URL — a
-    // PWA/WebAPK — over a browser, so it opens full-screen like the app instead
-    // of a browser tab. Falls back to the browser when no such app is installed.
-    val onOpenLink: (String) -> Unit = { url ->
+    // Open a web link / PWA. If a target app is set (e.g. the browser that
+    // installed the PWA), the URL is sent straight to it so it opens standalone.
+    // Otherwise we prefer any installed non-browser handler (a real WebAPK),
+    // falling back to the default browser.
+    val onOpenLink: (String, String?) -> Unit = { url, pkg ->
         val base = android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(url))
             .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
-        val launchedApp = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R) {
+        var launched = false
+        if (!pkg.isNullOrBlank()) {
+            val targeted = android.content.Intent(base).setPackage(pkg)
+            launched = runCatching { context.startActivity(targeted) }.isSuccess
+        }
+        if (!launched && android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R) {
             // REQUIRE_NON_BROWSER throws if only browsers can handle the URL, so
-            // this launches the WebAPK when present and lets us fall back otherwise.
+            // this launches a WebAPK when present and lets us fall back otherwise.
             val nonBrowser = android.content.Intent(base)
                 .addFlags(android.content.Intent.FLAG_ACTIVITY_REQUIRE_NON_BROWSER)
-            runCatching { context.startActivity(nonBrowser) }.isSuccess
-        } else false
-        if (!launchedApp) runCatching { context.startActivity(base) }
+            launched = runCatching { context.startActivity(nonBrowser) }.isSuccess
+        }
+        if (!launched) runCatching { context.startActivity(base) }
         dismiss()
     }
 
@@ -241,7 +247,7 @@ private fun PanelCard(
     group: GroupConfig,
     recents: List<String>,
     onLaunch: (String) -> Unit,
-    onOpenLink: (String) -> Unit,
+    onOpenLink: (String, String?) -> Unit,
     onOpenSettings: () -> Unit,
 ) {
     val corner = panel.cornerDp.dp
@@ -363,7 +369,7 @@ private fun PanelContent(
     groupStyle: GroupConfig,
     showLabels: Boolean,
     onLaunch: (String) -> Unit,
-    onOpenLink: (String) -> Unit,
+    onOpenLink: (String, String?) -> Unit,
 ) {
     var openKey by remember { mutableStateOf<String?>(null) }
     var pivotX by remember { mutableStateOf(0.5f) }
@@ -546,7 +552,7 @@ private fun AppGrid(
     showLabels: Boolean,
     modifier: Modifier,
     onLaunch: (String) -> Unit,
-    onOpenLink: (String) -> Unit = {},
+    onOpenLink: (String, String?) -> Unit = { _, _ -> },
 ) {
     Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
         items.chunked(cols).forEach { rowItems ->
@@ -555,7 +561,7 @@ private fun AppGrid(
                     Box(Modifier.weight(1f)) {
                         if (item.type == ItemType.LINK) {
                             LinkTile(item.name.orEmpty(), item.emoji, showLabels) {
-                                item.url?.let(onOpenLink)
+                                item.url?.let { onOpenLink(it, item.targetPackage) }
                             }
                         } else {
                             val app = item.packageName?.let { appMap[it] }

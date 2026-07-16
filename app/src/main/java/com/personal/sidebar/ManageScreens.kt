@@ -1,8 +1,11 @@
 package com.personal.sidebar
 
+import android.content.Intent
+import android.net.Uri
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -13,6 +16,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -20,6 +24,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -60,6 +65,23 @@ internal fun rememberAppMap(): Map<String, AppInfo>? {
     var map by remember { mutableStateOf<Map<String, AppInfo>?>(null) }
     LaunchedEffect(Unit) { map = AppRepository.map(context) }
     return map
+}
+
+/** Apps that can open an https URL (browsers + any URL handler), for the link
+ *  "Open with" picker. */
+@Composable
+internal fun rememberBrowsers(): List<AppInfo> {
+    val context = LocalContext.current
+    return remember {
+        val pm = context.packageManager
+        val probe = Intent(Intent.ACTION_VIEW, Uri.parse("https://example.com"))
+        runCatching {
+            pm.queryIntentActivities(probe, 0).mapNotNull { ri ->
+                val pkg = ri.activityInfo?.packageName ?: return@mapNotNull null
+                AppInfo(ri.loadLabel(pm).toString(), pkg, ri.loadIcon(pm))
+            }.distinctBy { it.packageName }.sortedBy { it.label.lowercase() }
+        }.getOrDefault(emptyList())
+    }
 }
 
 @Composable
@@ -264,6 +286,8 @@ internal fun LinkEditScreen(
     var name by remember { mutableStateOf(existing?.name ?: "") }
     var emoji by remember { mutableStateOf(existing?.emoji ?: "") }
     var url by remember { mutableStateOf(existing?.url ?: "https://") }
+    var target by remember { mutableStateOf(existing?.targetPackage) }
+    val browsers = rememberBrowsers()
 
     fun normalizedUrl(): String {
         val u = url.trim()
@@ -277,7 +301,7 @@ internal fun LinkEditScreen(
             trailingLabel = "Save",
             trailingEnabled = urlValid && name.isNotBlank(),
             onBack = onCancel,
-            onTrailing = { onSave(SidebarItem.link(name.trim(), normalizedUrl(), emoji.trim().ifBlank { null })) },
+            onTrailing = { onSave(SidebarItem.link(name.trim(), normalizedUrl(), emoji.trim().ifBlank { null }, target)) },
         ) {
             Column(Modifier.fillMaxWidth().padding(horizontal = 8.dp)) {
                 Row(Modifier.fillMaxWidth().padding(vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -309,6 +333,34 @@ internal fun LinkEditScreen(
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(vertical = 4.dp),
                 )
+
+                // "Open with" — force the URL into a specific app. Useful when a
+                // PWA was installed via a browser (e.g. Vivaldi) that opens it
+                // standalone: picking that browser makes the tile launch it like
+                // the home-screen icon does.
+                Text(
+                    "Open with",
+                    style = MaterialTheme.typography.labelLarge,
+                    modifier = Modifier.padding(top = 8.dp, bottom = 4.dp),
+                )
+                Row(
+                    Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    FilterChip(
+                        selected = target == null,
+                        onClick = { target = null },
+                        label = { Text("System default") },
+                    )
+                    browsers.forEach { app ->
+                        FilterChip(
+                            selected = target == app.packageName,
+                            onClick = { target = app.packageName },
+                            label = { Text(app.label) },
+                        )
+                    }
+                }
+
                 if (onDelete != null) {
                     TextButton(onClick = onDelete) {
                         Text("Delete link", color = MaterialTheme.colorScheme.error)

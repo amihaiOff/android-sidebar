@@ -47,7 +47,9 @@ running handle re-arms on each change):
   label, an optional **emoji** icon (a globe is used otherwise) and the URL. If
   you've installed the site as a PWA (added it to your home screen as a WebAPK),
   Android routes the tap to the installed app; otherwise it opens in your
-  browser. This lets you pin something that isn't a real installed app.
+  browser. Use **Open with** to force the URL into a specific app — handy when a
+  PWA was installed through a browser (e.g. Vivaldi) that opens it standalone:
+  pick that browser and the tile launches it like the home-screen icon does.
 - **Icon-only mode** — a **Show app names** toggle in the lab hides the labels
   under every tile in the main panel, leaving just the icons.
 - **Recent apps** — the bottom of the panel shows the last 4 recent apps. With
