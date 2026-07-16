@@ -55,6 +55,8 @@ data class PanelConfig(
     val scrimColor: Int = 0xFF000000.toInt(),
     /** Background scrim opacity: 0 = no dim (see through), 1 = solid. */
     val scrimAlpha: Float = 0.25f,
+    /** White "glass edge" stroke width in dp; 0 = no edge. */
+    val edgeDp: Float = 1f,
 )
 
 /** The whole persisted sidebar configuration. */

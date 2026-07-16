@@ -135,6 +135,22 @@ private fun SidebarRoot() {
 
             Screen.GlassLab -> GlassLabScreen(
                 modifier = mod,
+                initialBlur = config.panel.blurDp.toFloat().coerceIn(0f, 40f),
+                initialTintAlpha = config.panel.opacity.coerceIn(0f, 0.6f),
+                initialStroke = config.panel.edgeDp.coerceIn(0f, 4f),
+                onApply = { blur, tintAlpha, stroke ->
+                    commit(
+                        config.copy(
+                            panel = config.panel.copy(
+                                blurDp = blur.toInt(),
+                                opacity = tintAlpha,
+                                brightness = 1f, // white frosting tint, like the lab
+                                edgeDp = stroke,
+                            )
+                        )
+                    )
+                    screen = Screen.Home
+                },
                 onBack = { screen = Screen.Home },
             )
 

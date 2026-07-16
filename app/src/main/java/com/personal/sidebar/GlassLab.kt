@@ -22,6 +22,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -57,10 +58,17 @@ import kotlin.math.roundToInt
  * live over a colourful background, and read off the Compose snippet.
  */
 @Composable
-internal fun GlassLabScreen(modifier: Modifier, onBack: () -> Unit) {
-    var blur by remember { mutableFloatStateOf(20f) }
-    var tintAlpha by remember { mutableFloatStateOf(0.2f) }
-    var stroke by remember { mutableFloatStateOf(1f) }
+internal fun GlassLabScreen(
+    modifier: Modifier,
+    initialBlur: Float,
+    initialTintAlpha: Float,
+    initialStroke: Float,
+    onApply: (blur: Float, tintAlpha: Float, stroke: Float) -> Unit,
+    onBack: () -> Unit,
+) {
+    var blur by remember { mutableFloatStateOf(initialBlur) }
+    var tintAlpha by remember { mutableFloatStateOf(initialTintAlpha) }
+    var stroke by remember { mutableFloatStateOf(initialStroke) }
 
     Column(
         modifier
@@ -86,6 +94,18 @@ internal fun GlassLabScreen(modifier: Modifier, onBack: () -> Unit) {
         LabSlider("Blur radius", blur, 0f..40f, "${blur.roundToInt()} px") { blur = it }
         LabSlider("Tint alpha", tintAlpha, 0f..0.6f, "${(tintAlpha * 100).roundToInt()}%") { tintAlpha = it }
         LabSlider("Edge stroke", stroke, 0f..4f, "${stroke.roundToInt()} dp") { stroke = it }
+
+        Spacer(Modifier.height(16.dp))
+        Button(
+            onClick = { onApply(blur, tintAlpha, stroke) },
+            modifier = Modifier.fillMaxWidth(),
+        ) { Text("Apply to sidebar") }
+        Text(
+            "Applies as: frost = blur, panel opacity = tint alpha (white tint), edge = stroke.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(top = 6.dp),
+        )
 
         Spacer(Modifier.height(16.dp))
         CodeReference(blur = blur, tintAlpha = tintAlpha, stroke = stroke)

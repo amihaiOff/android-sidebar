@@ -163,7 +163,9 @@ private fun PanelCard(
                 .background(panelColor(panel.brightness).copy(alpha = panel.opacity.coerceIn(0.12f, 1f)))
         )
         // Glass edge — thin white stroke catching the light.
-        Box(Modifier.matchParentSize().border(1.dp, Color.White.copy(alpha = 0.22f), shape))
+        if (panel.edgeDp > 0f) {
+            Box(Modifier.matchParentSize().border(panel.edgeDp.dp, Color.White.copy(alpha = 0.3f), shape))
+        }
         Column(
             Modifier
                 .fillMaxSize()
