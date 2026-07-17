@@ -449,7 +449,7 @@ private fun PanelCard(
             }
             // Bottom bar: a Settings gear, then recent apps.
             if (appMap != null) {
-                BottomBar(recents = recents, appMap = appMap, group = group, onLaunch = onLaunch, onOpenSettings = onOpenSettings)
+                BottomBar(recents = recents, appMap = appMap, group = group, showLabels = panel.showLabels, onLaunch = onLaunch, onOpenSettings = onOpenSettings)
             }
         }
     }
@@ -461,6 +461,7 @@ private fun BottomBar(
     recents: List<String>,
     appMap: Map<String, AppInfo>,
     group: GroupConfig,
+    showLabels: Boolean,
     onLaunch: (String) -> Unit,
     onOpenSettings: () -> Unit,
 ) {
@@ -503,7 +504,7 @@ private fun BottomBar(
         val recentApps = recents.mapNotNull { appMap[it] }.take(4)
         recentApps.forEach { app ->
             Box(Modifier.weight(1f)) {
-                AppTile(app = app) { onLaunch(app.packageName) }
+                AppTile(app = app, showLabel = showLabels) { onLaunch(app.packageName) }
             }
         }
         repeat(4 - recentApps.size) { Box(Modifier.weight(1f)) }
