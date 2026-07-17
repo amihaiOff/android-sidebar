@@ -640,25 +640,43 @@ private fun FolderCircle(
         if (android.os.Build.VERSION.SDK_INT >= 31) Color(context.getColor(android.R.color.system_accent1_100))
         else Color(0xFFB9C3FF)
     }
+    val glyphContent: @Composable () -> Unit = {
+        val vector = com.personal.sidebar.FolderIcons.icon(folder.iconKey)
+        if (vector != null) {
+            val tint = folder.colorArgb?.let { Color(it) } ?: themeColor
+            Icon(vector, contentDescription = folder.name, tint = tint, modifier = Modifier.size(40.dp))
+        } else {
+            val glyph = folder.emoji?.takeIf { it.isNotBlank() } ?: folder.name?.take(1) ?: "📁"
+            Text(glyph, fontSize = 44.sp)
+        }
+    }
     Column(
         modifier = modifier.width(66.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Box(
-            modifier = Modifier
-                .size(66.dp)
-                .clip(RoundedCornerShape(18.dp))
-                .clickable(onClick = onClick),
-            contentAlignment = Alignment.Center,
-        ) {
-            val vector = com.personal.sidebar.FolderIcons.icon(folder.iconKey)
-            if (vector != null) {
-                val tint = folder.colorArgb?.let { Color(it) } ?: themeColor
-                Icon(vector, contentDescription = folder.name, tint = tint, modifier = Modifier.size(40.dp))
-            } else {
-                val glyph = folder.emoji?.takeIf { it.isNotBlank() } ?: folder.name?.take(1) ?: "📁"
-                Text(glyph, fontSize = 44.sp)
+        if (style.iconBackground) {
+            // The optional styled tile (square) behind the icon, driven by the
+            // Folder settings.
+            val elevation = (maxOf(style.shadowTopDp, style.shadowBottomDp, style.shadowLeftDp, style.shadowRightDp) * 0.6f)
+                .coerceIn(0f, 16f).dp
+            Surface(
+                modifier = Modifier.size(66.dp).clickable(onClick = onClick),
+                shape = RoundedCornerShape(style.cornerDp.dp),
+                color = panelColor(style.brightness).copy(alpha = style.opacity.coerceIn(0f, 1f)),
+                shadowElevation = elevation,
+                tonalElevation = 0.dp,
+                border = if (style.edgeDp > 0f) BorderStroke(style.edgeDp.dp, Color.White.copy(alpha = if (selected) 0.75f else 0.4f)) else null,
+            ) {
+                Box(contentAlignment = Alignment.Center) { glyphContent() }
             }
+        } else {
+            Box(
+                modifier = Modifier
+                    .size(66.dp)
+                    .clip(RoundedCornerShape(18.dp))
+                    .clickable(onClick = onClick),
+                contentAlignment = Alignment.Center,
+            ) { glyphContent() }
         }
         if (!folder.name.isNullOrBlank()) {
             Text(

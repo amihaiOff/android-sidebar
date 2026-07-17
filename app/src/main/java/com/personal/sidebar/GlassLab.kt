@@ -125,6 +125,13 @@ internal fun GlassLabScreen(
 
         Spacer(Modifier.height(16.dp))
         SectionLabel("Folder")
+        Text(
+            "These style the styled folder tile (if on) and the expanded folder card.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(bottom = 2.dp),
+        )
+        ToggleRow("Folder icon background", f.iconBackground) { setF(f.copy(iconBackground = it)) }
         LabSlider("Folder opacity", f.opacity, 0.2f..1f, "${(f.opacity * 100).roundToInt()}%") { setF(f.copy(opacity = it)) }
         LabSlider("Folder brightness", f.brightness, 0f..1f, "${(f.brightness * 100).roundToInt()}%") { setF(f.copy(brightness = it)) }
         LabSlider("Folder edge", f.edgeDp, 0f..4f, "${f.edgeDp.roundToInt()} dp") { setF(f.copy(edgeDp = it)) }
@@ -251,8 +258,23 @@ private fun GlassPreview(p: PanelConfig, f: FolderConfig, g: GroupConfig) {
 
 @Composable
 private fun PreviewFolderCircle(f: FolderConfig, emoji: String, selected: Boolean) {
-    Box(Modifier.size(56.dp), contentAlignment = Alignment.Center) {
-        Text(emoji, fontSize = 38.sp)
+    if (f.iconBackground) {
+        val tint = labTint(f.brightness).copy(alpha = f.opacity.coerceIn(0f, 1f))
+        val elevation = (maxOf(f.shadowTopDp, f.shadowBottomDp, f.shadowLeftDp, f.shadowRightDp) * 0.6f)
+            .coerceIn(0f, 16f).dp
+        Surface(
+            modifier = Modifier.size(56.dp),
+            shape = RoundedCornerShape(f.cornerDp.dp),
+            color = tint,
+            shadowElevation = elevation,
+            border = if (f.edgeDp > 0f) BorderStroke(f.edgeDp.dp, Color.White.copy(alpha = if (selected) 0.75f else 0.4f)) else null,
+        ) {
+            Box(contentAlignment = Alignment.Center) { Text(emoji, fontSize = 30.sp) }
+        }
+    } else {
+        Box(Modifier.size(56.dp), contentAlignment = Alignment.Center) {
+            Text(emoji, fontSize = 38.sp)
+        }
     }
 }
 

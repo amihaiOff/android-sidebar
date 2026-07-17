@@ -86,6 +86,8 @@ data class PanelConfig(
 /** Appearance of a folder card (a "nested glass" layer inside the panel). */
 @Serializable
 data class FolderConfig(
+    /** Show the styled tile (square) behind each folder icon. Off = bare icon. */
+    val iconBackground: Boolean = false,
     /** Folder tint opacity — usually higher than the panel so it reads closer. */
     val opacity: Float = 0.9f,
     /** Folder tint lightness: 0 = near-black, 1 = white. */
