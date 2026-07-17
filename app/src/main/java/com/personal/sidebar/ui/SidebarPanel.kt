@@ -41,6 +41,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Language
+import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Surface
@@ -446,9 +447,9 @@ private fun PanelCard(
                     )
                 }
             }
-            // Bottom bar: a Settings link, then recent apps.
+            // Bottom bar: a Settings gear, then recent apps.
             if (appMap != null) {
-                BottomBar(recents = recents, appMap = appMap, onLaunch = onLaunch, onOpenSettings = onOpenSettings)
+                BottomBar(recents = recents, appMap = appMap, group = group, onLaunch = onLaunch, onOpenSettings = onOpenSettings)
             }
         }
     }
@@ -459,22 +460,39 @@ private fun PanelCard(
 private fun BottomBar(
     recents: List<String>,
     appMap: Map<String, AppInfo>,
+    group: GroupConfig,
     onLaunch: (String) -> Unit,
     onOpenSettings: () -> Unit,
 ) {
-    // A centered "Settings" pill with a subtle glass border so it reads as a button.
+    // A centered gear button — same outline icon set and auto-theme colour as
+    // the folders, with the same bordered, drop-shadowed frame as the groups.
+    val context = LocalContext.current
+    val themeColor = remember {
+        if (android.os.Build.VERSION.SDK_INT >= 31) Color(context.getColor(android.R.color.system_accent1_100))
+        else Color(0xFFB9C3FF)
+    }
+    val shape = RoundedCornerShape(14.dp)
     Box(Modifier.fillMaxWidth().padding(top = 2.dp), contentAlignment = Alignment.Center) {
-        Text(
-            "Settings",
-            color = LabelSecondary.copy(alpha = 0.55f),
-            fontSize = 15.sp,
-            textAlign = TextAlign.Center,
+        Box(
             modifier = Modifier
-                .clip(RoundedCornerShape(14.dp))
-                .border(1.dp, Color.White.copy(alpha = 0.22f), RoundedCornerShape(14.dp))
+                .drawBehind { drawGroupDropShadow(14.dp.toPx(), group.shadowDp) }
+                .clip(shape)
+                .then(
+                    if (group.borderDp > 0f) {
+                        Modifier.border(group.borderDp.dp, Color.White.copy(alpha = group.borderBrightness.coerceIn(0f, 1f)), shape)
+                    } else Modifier
+                )
                 .clickable(onClick = onOpenSettings)
-                .padding(horizontal = 28.dp, vertical = 7.dp),
-        )
+                .padding(horizontal = 22.dp, vertical = 8.dp),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(
+                Icons.Outlined.Settings,
+                contentDescription = "Settings",
+                tint = themeColor,
+                modifier = Modifier.size(22.dp),
+            )
+        }
     }
     Box(Modifier.fillMaxWidth().padding(top = 8.dp).height(1.dp).background(Color.White.copy(alpha = 0.15f)))
     // Recent apps across the full width.
