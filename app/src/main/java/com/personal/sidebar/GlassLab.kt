@@ -91,28 +91,18 @@ internal fun GlassLabScreen(
     fun setF(nf: FolderConfig) { f = nf; onChange(p, nf, g) }
     fun setG(ng: GroupConfig) { g = ng; onChange(p, f, ng) }
 
-    Column(
-        modifier
-            .fillMaxSize()
-            .verticalScroll(rememberScrollState())
-            .padding(16.dp),
-    ) {
+    Column(modifier.fillMaxSize().padding(16.dp)) {
+        // Fixed header + preview: they stay pinned while the controls scroll.
         Row(verticalAlignment = Alignment.CenterVertically) {
             IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back") }
             Text("Panel & glass", style = MaterialTheme.typography.titleLarge)
         }
-        Text(
-            "Everything that controls the panel and folder look lives here. Changes " +
-                "apply immediately and the preview updates live. Effects stay inside " +
-                "the panel — nothing touches the rest of the screen.",
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.padding(top = 4.dp, bottom = 14.dp),
-        )
-
+        Spacer(Modifier.height(8.dp))
         GlassPreview(p, f, g)
+        Spacer(Modifier.height(12.dp))
 
-        Spacer(Modifier.height(16.dp))
+        // Scrolling controls below the pinned preview.
+        Column(Modifier.weight(1f).verticalScroll(rememberScrollState())) {
         SectionLabel("Panel")
         LabSlider("Frost (blur)", p.blurDp.toFloat(), 0f..80f, "${p.blurDp} dp") { setP(p.copy(blurDp = it.toInt())) }
         LabSlider("Tint opacity", p.opacity, 0.1f..1f, "${(p.opacity * 100).roundToInt()}%") { setP(p.copy(opacity = it)) }
@@ -159,6 +149,9 @@ internal fun GlassLabScreen(
         LabSlider("Corner radius", g.cornerDp.toFloat(), 0f..32f, "${g.cornerDp} dp") { setG(g.copy(cornerDp = it.roundToInt())) }
         LabSlider("Shadow", g.shadowDp, 0f..24f, "${g.shadowDp.roundToInt()} dp") { setG(g.copy(shadowDp = it)) }
         LabSlider("Sunken inset", g.insetDp, 0f..24f, "${g.insetDp.roundToInt()} dp") { setG(g.copy(insetDp = it)) }
+        ToggleRow("Center group titles", g.titleCenter) { setG(g.copy(titleCenter = it)) }
+        Spacer(Modifier.height(8.dp))
+        } // end scrolling controls
     }
 }
 
@@ -230,12 +223,17 @@ private fun GlassPreview(p: PanelConfig, f: FolderConfig, g: GroupConfig) {
                 ) {
                     Box {
                         Column(Modifier.padding(8.dp)) {
-                            Box(
-                                Modifier
-                                    .size(width = 46.dp, height = 6.dp)
-                                    .clip(RoundedCornerShape(3.dp))
-                                    .background(Color.White.copy(alpha = 0.55f))
-                            )
+                            Row(
+                                Modifier.fillMaxWidth(),
+                                horizontalArrangement = if (g.titleCenter) Arrangement.Center else Arrangement.Start,
+                            ) {
+                                Box(
+                                    Modifier
+                                        .size(width = 46.dp, height = 6.dp)
+                                        .clip(RoundedCornerShape(3.dp))
+                                        .background(Color.White.copy(alpha = 0.55f))
+                                )
+                            }
                             Spacer(Modifier.height(8.dp))
                             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                                 repeat(4) { AppPlaceholder(showLabel = p.showLabels) }

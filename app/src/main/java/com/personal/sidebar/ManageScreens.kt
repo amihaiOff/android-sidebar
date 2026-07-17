@@ -4,6 +4,7 @@ import android.content.Intent
 import android.net.Uri
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.Arrangement
@@ -13,12 +14,17 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -41,6 +47,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
@@ -215,7 +222,9 @@ internal fun FolderEditScreen(
 ) {
     val all = rememberAllApps()
     var name by remember { mutableStateOf(existing?.name ?: "") }
-    var emoji by remember { mutableStateOf(existing?.emoji ?: "") }
+    var iconKey by remember { mutableStateOf(existing?.iconKey) }
+    var colorArgb by remember { mutableStateOf(existing?.colorArgb) }
+    var iconQuery by remember { mutableStateOf("") }
     val selected = remember { mutableStateListOf<String>().apply { existing?.packages?.let { addAll(it) } } }
     val noun = if (asGroup) "group" else "folder"
 
@@ -223,35 +232,78 @@ internal fun FolderEditScreen(
         SubScreen(
             title = (if (existing == null) "New " else "Edit ") + noun,
             trailingLabel = "Save",
-            // Name is optional for folders (the emoji is the identity); groups
+            // Name is optional for folders (the icon is the identity); groups
             // still want a title.
             trailingEnabled = all != null && selected.isNotEmpty() && (!asGroup || name.isNotBlank()),
             onBack = onCancel,
             onTrailing = {
                 onSave(
                     if (asGroup) SidebarItem.group(name.trim(), selected.toList())
-                    else SidebarItem.folder(name.trim(), selected.toList(), emoji.trim().ifBlank { null })
+                    else SidebarItem.folder(name.trim(), selected.toList(), existing?.emoji, iconKey, colorArgb)
                 )
             },
         ) {
-            Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                if (!asGroup) {
-                    OutlinedTextField(
-                        value = emoji,
-                        onValueChange = { emoji = it.take(4) },
-                        label = { Text("Emoji") },
-                        singleLine = true,
-                        modifier = Modifier.width(96.dp),
-                    )
-                }
+            OutlinedTextField(
+                value = name,
+                onValueChange = { name = it },
+                label = { Text(if (asGroup) "Group title" else "Folder name") },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp),
+            )
+
+            if (!asGroup) {
+                // Icon picker: an outline icon coloured to the theme (or a picked
+                // colour). Replaces the old emoji field.
                 OutlinedTextField(
-                    value = name,
-                    onValueChange = { name = it },
-                    label = { Text(if (asGroup) "Group title" else "Folder name") },
+                    value = iconQuery,
+                    onValueChange = { iconQuery = it },
+                    label = { Text("Search icons") },
                     singleLine = true,
-                    modifier = Modifier.weight(1f),
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp),
                 )
+                val tint = colorArgb?.let { Color(it) } ?: MaterialTheme.colorScheme.primary
+                LazyVerticalGrid(
+                    columns = GridCells.Fixed(6),
+                    modifier = Modifier.fillMaxWidth().height(150.dp).padding(horizontal = 8.dp),
+                ) {
+                    items(FolderIcons.search(iconQuery), key = { it.key }) { entry ->
+                        val isSel = iconKey == entry.key
+                        Box(
+                            Modifier
+                                .padding(4.dp)
+                                .size(46.dp)
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(if (isSel) MaterialTheme.colorScheme.primary.copy(alpha = 0.18f) else Color.Transparent)
+                                .clickable { iconKey = if (isSel) null else entry.key },
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Icon(entry.icon, contentDescription = entry.key, tint = tint, modifier = Modifier.size(26.dp))
+                        }
+                    }
+                }
+                // Colour row: "auto" (theme) first, then the palette.
+                Row(
+                    Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 8.dp, vertical = 8.dp),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                ) {
+                    FOLDER_ICON_COLORS.forEach { c ->
+                        val isSel = colorArgb == c
+                        val ring = if (isSel) MaterialTheme.colorScheme.onSurface else Color.White.copy(alpha = 0.25f)
+                        Box(
+                            Modifier
+                                .size(34.dp)
+                                .clip(CircleShape)
+                                .background(if (c == null) MaterialTheme.colorScheme.surfaceVariant else Color(c))
+                                .border(if (isSel) 3.dp else 1.dp, ring, CircleShape)
+                                .clickable { colorArgb = c },
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            if (c == null) Text("A", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                    }
+                }
             }
+
             if (onDelete != null) {
                 TextButton(onClick = onDelete, modifier = Modifier.padding(start = 4.dp)) {
                     Text("Delete $noun", color = MaterialTheme.colorScheme.error)

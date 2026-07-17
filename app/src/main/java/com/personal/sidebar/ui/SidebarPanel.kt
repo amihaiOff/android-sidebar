@@ -598,7 +598,12 @@ private fun PanelContent(
                                 color = LabelPrimary,
                                 fontWeight = FontWeight.SemiBold,
                                 fontSize = 14.sp,
-                                modifier = Modifier.padding(start = 2.dp, bottom = 6.dp),
+                                textAlign = if (groupStyle.titleCenter) TextAlign.Center else TextAlign.Start,
+                                modifier = if (groupStyle.titleCenter) {
+                                    Modifier.fillMaxWidth().padding(bottom = 6.dp)
+                                } else {
+                                    Modifier.padding(start = 2.dp, bottom = 6.dp)
+                                },
                             )
                         }
                         AppGrid(
@@ -630,6 +635,11 @@ private fun FolderCircle(
     modifier: Modifier,
     onClick: () -> Unit,
 ) {
+    val context = LocalContext.current
+    val themeColor = remember {
+        if (android.os.Build.VERSION.SDK_INT >= 31) Color(context.getColor(android.R.color.system_accent1_100))
+        else Color(0xFFB9C3FF)
+    }
     Column(
         modifier = modifier.width(66.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -641,8 +651,14 @@ private fun FolderCircle(
                 .clickable(onClick = onClick),
             contentAlignment = Alignment.Center,
         ) {
-            val glyph = folder.emoji?.takeIf { it.isNotBlank() } ?: folder.name?.take(1) ?: "📁"
-            Text(glyph, fontSize = 44.sp)
+            val vector = com.personal.sidebar.FolderIcons.icon(folder.iconKey)
+            if (vector != null) {
+                val tint = folder.colorArgb?.let { Color(it) } ?: themeColor
+                Icon(vector, contentDescription = folder.name, tint = tint, modifier = Modifier.size(40.dp))
+            } else {
+                val glyph = folder.emoji?.takeIf { it.isNotBlank() } ?: folder.name?.take(1) ?: "📁"
+                Text(glyph, fontSize = 44.sp)
+            }
         }
         if (!folder.name.isNullOrBlank()) {
             Text(

@@ -562,7 +562,9 @@ private fun ReorderableItems(
                     )
                     if (item.type == ItemType.FOLDER || item.type == ItemType.GROUP) {
                         val glyph = item.emoji?.takeIf { it.isNotBlank() }
+                        val vector = FolderIcons.icon(item.iconKey)
                         when {
+                            vector != null -> Icon(vector, contentDescription = null, modifier = Modifier.size(36.dp), tint = item.colorArgb?.let { Color(it) } ?: MaterialTheme.colorScheme.primary)
                             glyph != null -> Box(Modifier.size(36.dp), contentAlignment = Alignment.Center) { Text(glyph, fontSize = 24.sp) }
                             item.type == ItemType.GROUP -> Icon(Icons.Filled.Dashboard, contentDescription = null, modifier = Modifier.size(36.dp), tint = MaterialTheme.colorScheme.primary)
                             else -> Icon(Icons.Filled.Folder, contentDescription = null, modifier = Modifier.size(36.dp), tint = MaterialTheme.colorScheme.primary)

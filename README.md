@@ -36,11 +36,12 @@ running handle re-arms on each change):
 - **Curated apps** — the panel is **empty by default**; you choose which apps
   appear via **Add apps** (a searchable, multi-select list). It never dumps
   every installed app on you.
-- **Folders** — group apps with **New folder**: give it a name, an **emoji**,
-  and pick members. In the panel, folders appear as a **row of glass circles**
-  (the emoji is the icon); tapping one **expands its apps below the line**, with
-  the expansion animating out from the tapped circle. Opening a folder dims the
-  rest of the panel to focus on it. Edit/delete folders from settings.
+- **Folders** — group apps with **New folder**: give it a name, pick a
+  **line-style icon** (searchable picker) and a **colour** (or leave it on
+  *auto* to follow the system theme), and choose members. In the panel, folders
+  appear as a **row of icons spread across the width**; tapping one **expands its
+  apps below**, animating out from the tapped icon. Opening a folder dims the
+  rest of the panel. Edit/delete folders from settings.
 - **Groups** — **New group**: a titled section of apps shown inline in the main
   grid (always visible, unlike folders).
 - **Links / PWAs** — **Add link / PWA**: a tile that opens a URL. Give it a
@@ -65,8 +66,9 @@ running handle re-arms on each change):
   (blur), tint opacity, brightness (near-black → white), edge stroke, background
   colour/dim; folder opacity, brightness, edge, columns and corner radius; and a
   **group frame** (a subtle border around each titled group — width, brightness,
-  corner radius, drop shadow, and a **sunken inset** that gives an inner-shadow
-  "recessed into the panel" look). There's also a **Themed icons** toggle
+  corner radius, drop shadow, a **sunken inset** for a recessed look, and a
+  **center-titles** toggle). The lab's live preview is **pinned** — it stays
+  visible while you scroll the controls. There's also a **Themed icons** toggle
   (Android 13+) that recolours app icons with a monochrome layer to match the
   system theme, like the OS themed-icons feature. Changes apply immediately.
 - **Real, panel-confined blur.** The panel is hosted in a `Dialog` (a real

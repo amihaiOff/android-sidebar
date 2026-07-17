@@ -17,8 +17,12 @@ data class SidebarItem(
     val packageName: String? = null,
     /** Display name for folders/groups/links. */
     val name: String? = null,
-    /** Emoji shown in a folder circle or a link tile. */
+    /** Emoji shown in a folder circle or a link tile (legacy / fallback). */
     val emoji: String? = null,
+    /** Outline-icon key (see FolderIcons) for a folder; takes precedence over emoji. */
+    val iconKey: String? = null,
+    /** Packed ARGB tint for the folder icon; null = colour to the system theme. */
+    val colorArgb: Int? = null,
     /** URL opened for [ItemType.LINK] (launches a PWA/WebAPK if installed). */
     val url: String? = null,
     /** For [ItemType.LINK]: force the URL to open in this app (e.g. the browser
@@ -31,8 +35,8 @@ data class SidebarItem(
         fun app(pkg: String) = SidebarItem(ItemType.APP, packageName = pkg)
         fun link(name: String, url: String, emoji: String? = null, targetPackage: String? = null) =
             SidebarItem(ItemType.LINK, name = name, emoji = emoji, url = url, targetPackage = targetPackage)
-        fun folder(name: String, packages: List<String>, emoji: String? = null) =
-            SidebarItem(ItemType.FOLDER, name = name, emoji = emoji, packages = packages)
+        fun folder(name: String, packages: List<String>, emoji: String? = null, iconKey: String? = null, colorArgb: Int? = null) =
+            SidebarItem(ItemType.FOLDER, name = name, emoji = emoji, iconKey = iconKey, colorArgb = colorArgb, packages = packages)
         fun group(name: String, packages: List<String>) =
             SidebarItem(ItemType.GROUP, name = name, packages = packages)
     }
@@ -112,6 +116,8 @@ data class GroupConfig(
     val insetDp: Float = 0f,
     /** Corner radius in dp. */
     val cornerDp: Int = 16,
+    /** Center the group title instead of left-aligning it. */
+    val titleCenter: Boolean = false,
 )
 
 /** The whole persisted sidebar configuration. */
