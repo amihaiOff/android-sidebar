@@ -465,7 +465,7 @@ private fun BottomBar(
     Text(
         "Settings",
         color = LabelSecondary.copy(alpha = 0.55f),
-        fontSize = 12.sp,
+        fontSize = 15.sp,
         textAlign = TextAlign.Center,
         modifier = Modifier
             .fillMaxWidth()
@@ -518,38 +518,33 @@ private fun PanelContent(
         // below so their tiles line up in columns. The open folder's contents
         // appear directly below (no divider between them).
         if (folders.isNotEmpty()) {
-            // Inset by the group card's inner padding (10dp) so folder columns
-            // line up with the app-icon columns inside the groups below.
-            Column(
-                Modifier.fillMaxWidth().padding(horizontal = 10.dp),
-                verticalArrangement = Arrangement.spacedBy(6.dp),
-            ) {
+            // Spread across the full panel width — the same span as the group
+            // cards below — so the first folder starts at the left edge and the
+            // last ends at the right edge.
+            Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 folders.chunked(COLUMNS).forEach { rowFolders ->
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                         rowFolders.forEach { f ->
                             val key = f.key()
                             val isOpen = openKey == key
                             val dim by animateFloatAsState(if (dimActive && !isOpen) 0.4f else 1f, label = "circleDim")
-                            Box(
-                                Modifier
-                                    .weight(1f)
+                            FolderCircle(
+                                folder = f,
+                                style = style,
+                                selected = isOpen,
+                                modifier = Modifier
+                                    .alpha(dim)
                                     .onGloballyPositioned { c ->
                                         centers[key] = c.positionInParent().x + c.size.width / 2f
                                     },
-                            ) {
-                                FolderCircle(
-                                    folder = f,
-                                    style = style,
-                                    selected = isOpen,
-                                    modifier = Modifier.alpha(dim),
-                                    onClick = {
-                                        pivotX = ((centers[key] ?: (widthPx / 2f)) / widthPx).coerceIn(0f, 1f)
-                                        openKey = if (isOpen) null else key
-                                    },
-                                )
-                            }
+                                onClick = {
+                                    pivotX = ((centers[key] ?: (widthPx / 2f)) / widthPx).coerceIn(0f, 1f)
+                                    openKey = if (isOpen) null else key
+                                },
+                            )
                         }
-                        repeat(COLUMNS - rowFolders.size) { Box(Modifier.weight(1f)) }
+                        // Keep columns consistent when the last row isn't full.
+                        repeat(COLUMNS - rowFolders.size) { Spacer(Modifier.width(66.dp)) }
                     }
                 }
             }
@@ -626,7 +621,7 @@ private fun PanelContent(
     }
 }
 
-/** A folder as a rounded-square glass tile showing its emoji, label beneath. */
+/** A folder as a bare emoji (no tile/square behind it), with a label beneath. */
 @Composable
 private fun FolderCircle(
     folder: SidebarItem,
@@ -635,25 +630,19 @@ private fun FolderCircle(
     modifier: Modifier,
     onClick: () -> Unit,
 ) {
-    val tint = panelColor(style.brightness).copy(alpha = style.opacity.coerceIn(0f, 1f))
-    val elevation = (maxOf(style.shadowTopDp, style.shadowBottomDp, style.shadowLeftDp, style.shadowRightDp) * 0.6f)
-        .coerceIn(0f, 16f).dp
     Column(
-        modifier = modifier.fillMaxWidth().padding(horizontal = 2.dp),
-        horizontalAlignment = Alignment.Start,
+        modifier = modifier.width(66.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Surface(
-            modifier = Modifier.size(66.dp).clickable(onClick = onClick),
-            shape = RoundedCornerShape(18.dp),
-            color = tint,
-            shadowElevation = elevation,
-            tonalElevation = 0.dp,
-            border = if (style.edgeDp > 0f) BorderStroke(style.edgeDp.dp, Color.White.copy(alpha = if (selected) 0.75f else 0.4f)) else null,
+        Box(
+            modifier = Modifier
+                .size(66.dp)
+                .clip(RoundedCornerShape(18.dp))
+                .clickable(onClick = onClick),
+            contentAlignment = Alignment.Center,
         ) {
-            Box(contentAlignment = Alignment.Center) {
-                val glyph = folder.emoji?.takeIf { it.isNotBlank() } ?: folder.name?.take(1) ?: "📁"
-                Text(glyph, fontSize = 32.sp)
-            }
+            val glyph = folder.emoji?.takeIf { it.isNotBlank() } ?: folder.name?.take(1) ?: "📁"
+            Text(glyph, fontSize = 44.sp)
         }
         if (!folder.name.isNullOrBlank()) {
             Text(
@@ -662,8 +651,8 @@ private fun FolderCircle(
                 fontSize = 10.sp,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
-                textAlign = TextAlign.Start,
-                modifier = Modifier.padding(top = 4.dp).width(66.dp),
+                textAlign = TextAlign.Center,
+                modifier = Modifier.padding(top = 2.dp).width(66.dp),
             )
         }
     }
