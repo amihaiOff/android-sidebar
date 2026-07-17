@@ -472,7 +472,7 @@ private fun BottomBar(
         else Color(0xFFB9C3FF)
     }
     val shape = RoundedCornerShape(14.dp)
-    Box(Modifier.fillMaxWidth().padding(top = 2.dp), contentAlignment = Alignment.Center) {
+    Box(Modifier.fillMaxWidth().padding(top = 2.dp), contentAlignment = Alignment.CenterStart) {
         Box(
             modifier = Modifier
                 .drawBehind { drawGroupDropShadow(14.dp.toPx(), group.shadowDp) }
