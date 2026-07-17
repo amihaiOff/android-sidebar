@@ -157,6 +157,7 @@ internal fun GlassLabScreen(
         LabSlider("Shadow", g.shadowDp, 0f..24f, "${g.shadowDp.roundToInt()} dp") { setG(g.copy(shadowDp = it)) }
         LabSlider("Sunken inset", g.insetDp, 0f..24f, "${g.insetDp.roundToInt()} dp") { setG(g.copy(insetDp = it)) }
         ToggleRow("Center group titles", g.titleCenter) { setG(g.copy(titleCenter = it)) }
+        LabSlider("Title transparency", g.titleAlpha, 0.1f..1f, "${(g.titleAlpha * 100).roundToInt()}%") { setG(g.copy(titleAlpha = it)) }
         Spacer(Modifier.height(8.dp))
         } // end scrolling controls
     }

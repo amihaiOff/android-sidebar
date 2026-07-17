@@ -120,6 +120,8 @@ data class GroupConfig(
     val cornerDp: Int = 16,
     /** Center the group title instead of left-aligning it. */
     val titleCenter: Boolean = false,
+    /** Group title text opacity (matches the panel's Settings link by default). */
+    val titleAlpha: Float = 0.55f,
 )
 
 /** The whole persisted sidebar configuration. */

@@ -462,17 +462,20 @@ private fun BottomBar(
     onLaunch: (String) -> Unit,
     onOpenSettings: () -> Unit,
 ) {
-    Text(
-        "Settings",
-        color = LabelSecondary.copy(alpha = 0.55f),
-        fontSize = 15.sp,
-        textAlign = TextAlign.Center,
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(8.dp))
-            .clickable(onClick = onOpenSettings)
-            .padding(vertical = 6.dp),
-    )
+    // A centered "Settings" pill with a subtle glass border so it reads as a button.
+    Box(Modifier.fillMaxWidth().padding(top = 2.dp), contentAlignment = Alignment.Center) {
+        Text(
+            "Settings",
+            color = LabelSecondary.copy(alpha = 0.55f),
+            fontSize = 15.sp,
+            textAlign = TextAlign.Center,
+            modifier = Modifier
+                .clip(RoundedCornerShape(14.dp))
+                .border(1.dp, Color.White.copy(alpha = 0.22f), RoundedCornerShape(14.dp))
+                .clickable(onClick = onOpenSettings)
+                .padding(horizontal = 28.dp, vertical = 7.dp),
+        )
+    }
     Box(Modifier.fillMaxWidth().padding(top = 8.dp).height(1.dp).background(Color.White.copy(alpha = 0.15f)))
     // Recent apps across the full width.
     Row(
@@ -595,7 +598,7 @@ private fun PanelContent(
                         if (!g.name.isNullOrBlank()) {
                             Text(
                                 text = g.name,
-                                color = LabelPrimary,
+                                color = LabelPrimary.copy(alpha = groupStyle.titleAlpha.coerceIn(0f, 1f)),
                                 fontWeight = FontWeight.SemiBold,
                                 fontSize = 14.sp,
                                 textAlign = if (groupStyle.titleCenter) TextAlign.Center else TextAlign.Start,
@@ -656,14 +659,18 @@ private fun FolderCircle(
     ) {
         if (style.iconBackground) {
             // The optional styled tile (square) behind the icon, driven by the
-            // Folder settings.
-            val elevation = (maxOf(style.shadowTopDp, style.shadowBottomDp, style.shadowLeftDp, style.shadowRightDp) * 0.6f)
-                .coerceIn(0f, 16f).dp
+            // Folder settings. Use a custom OUTWARD drop shadow (not Surface
+            // elevation, which bleeds through the translucent tile as a faint
+            // square behind the icon).
+            val shadow = maxOf(style.shadowTopDp, style.shadowBottomDp, style.shadowLeftDp, style.shadowRightDp).coerceIn(0f, 24f)
             Surface(
-                modifier = Modifier.size(66.dp).clickable(onClick = onClick),
+                modifier = Modifier
+                    .size(66.dp)
+                    .drawBehind { drawGroupDropShadow(style.cornerDp.dp.toPx(), shadow) }
+                    .clickable(onClick = onClick),
                 shape = RoundedCornerShape(style.cornerDp.dp),
                 color = panelColor(style.brightness).copy(alpha = style.opacity.coerceIn(0f, 1f)),
-                shadowElevation = elevation,
+                shadowElevation = 0.dp,
                 tonalElevation = 0.dp,
                 border = if (style.edgeDp > 0f) BorderStroke(style.edgeDp.dp, Color.White.copy(alpha = if (selected) 0.75f else 0.4f)) else null,
             ) {
