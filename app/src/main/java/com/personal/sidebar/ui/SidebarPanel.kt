@@ -281,6 +281,49 @@ internal fun androidx.compose.ui.graphics.drawscope.DrawScope.drawTwoToneFolder(
     }
 }
 
+/**
+ * Renders an emoji as a themed (monochrome, accent-tinted) tile so emoji link
+ * icons match the themed app icons instead of staying full-colour. Same
+ * luminance-silhouette treatment used for generated app monochromes.
+ */
+internal fun themedEmojiBitmap(emoji: String, sizePx: Int, fg: Int, bg: Int): android.graphics.Bitmap {
+    val src = android.graphics.Bitmap.createBitmap(sizePx, sizePx, android.graphics.Bitmap.Config.ARGB_8888)
+    val sc = android.graphics.Canvas(src)
+    val tp = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
+        textSize = sizePx * 0.72f
+        textAlign = android.graphics.Paint.Align.CENTER
+    }
+    val fm = tp.fontMetrics
+    sc.drawText(emoji, sizePx / 2f, sizePx / 2f - (fm.ascent + fm.descent) / 2f, tp)
+
+    val out = android.graphics.Bitmap.createBitmap(sizePx, sizePx, android.graphics.Bitmap.Config.ARGB_8888)
+    val c = android.graphics.Canvas(out)
+    val radius = sizePx * 0.22f
+    val rect = android.graphics.RectF(0f, 0f, sizePx.toFloat(), sizePx.toFloat())
+    c.drawRoundRect(rect, radius, radius, android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply { color = bg })
+    c.clipPath(android.graphics.Path().apply { addRoundRect(rect, radius, radius, android.graphics.Path.Direction.CW) })
+    val n = sizePx * sizePx
+    val px = IntArray(n)
+    src.getPixels(px, 0, sizePx, 0, 0, sizePx, sizePx)
+    val fr = (fg ushr 16) and 0xFF
+    val fgn = (fg ushr 8) and 0xFF
+    val fb = fg and 0xFF
+    for (i in 0 until n) {
+        val p = px[i]
+        val a = (p ushr 24) and 0xFF
+        if (a == 0) { px[i] = 0; continue }
+        val r = (p ushr 16) and 0xFF
+        val g = (p ushr 8) and 0xFF
+        val bl = p and 0xFF
+        val lum = (0.299 * r + 0.587 * g + 0.114 * bl) / 255.0
+        val outA = (a * (0.25 + 0.75 * lum)).toInt().coerceIn(0, 255)
+        px[i] = (outA shl 24) or (fr shl 16) or (fgn shl 8) or fb
+    }
+    src.setPixels(px, 0, sizePx, 0, 0, sizePx, sizePx)
+    c.drawBitmap(src, 0f, 0f, null)
+    return out
+}
+
 /** Themed-icon rendering settings, provided down the panel tree. */
 internal data class IconStyle(val themed: Boolean, val fg: Int, val bg: Int)
 internal val LocalIconStyle = androidx.compose.runtime.staticCompositionLocalOf { IconStyle(false, 0, 0) }
@@ -964,11 +1007,19 @@ private fun AppTile(app: AppInfo, showLabel: Boolean = true, align: Alignment.Ho
 
 @Composable
 private fun LinkTile(label: String, emoji: String?, showLabel: Boolean, align: Alignment.Horizontal = Alignment.CenterHorizontally, onClick: () -> Unit) {
+    val style = LocalIconStyle.current
     Tile(label, showLabel, align, onClick) {
-        if (!emoji.isNullOrBlank()) {
-            Text(emoji, fontSize = 30.sp)
-        } else {
-            Box(
+        when {
+            // Themed mode: render the emoji as a monochrome, accent-tinted tile
+            // so it matches the themed app icons.
+            !emoji.isNullOrBlank() && style.themed -> {
+                val bmp = remember(emoji, style.themed, style.fg, style.bg) {
+                    themedEmojiBitmap(emoji, 144, style.fg, style.bg).asImageBitmap()
+                }
+                Image(bitmap = bmp, contentDescription = label, modifier = Modifier.size(50.dp).clip(RoundedCornerShape(12.dp)))
+            }
+            !emoji.isNullOrBlank() -> Text(emoji, fontSize = 30.sp)
+            else -> Box(
                 Modifier.size(50.dp).clip(RoundedCornerShape(12.dp)).background(Color.White.copy(alpha = 0.15f)),
                 contentAlignment = Alignment.Center,
             ) {

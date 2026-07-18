@@ -54,6 +54,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.core.graphics.drawable.toBitmap
 import com.personal.sidebar.apps.AppInfo
 import com.personal.sidebar.apps.AppRepository
@@ -91,6 +92,33 @@ internal fun rememberBrowsers(): List<AppInfo> {
                 AppInfo(ri.loadLabel(pm).toString(), pkg, ri.loadIcon(pm))
             }.distinctBy { it.packageName }.sortedBy { it.label.lowercase() }
         }.getOrDefault(emptyList())
+    }
+}
+
+private val EMOJIS = listOf(
+    "😀", "😄", "😁", "😆", "😉", "😊", "🙂", "😍", "😎", "🤩", "🥳", "🤔", "😴", "😇", "🤗", "🙃",
+    "❤️", "🧡", "💛", "💚", "💙", "💜", "🖤", "🤍", "💯", "🔥", "⭐", "✨", "🌟", "⚡", "💥", "💫",
+    "👍", "👏", "🙌", "🤝", "💪", "🙏", "👋", "✌️", "🤞", "👌", "🫶", "🤙",
+    "🐶", "🐱", "🐭", "🐰", "🦊", "🐻", "🐼", "🐨", "🐯", "🦁", "🐮", "🐸", "🐵", "🐔", "🦉", "🦄",
+    "🍎", "🍕", "🍔", "🌮", "🍟", "🍩", "🍪", "🎂", "☕", "🍺", "🍷", "🥑", "🍜", "🍣", "🍦", "🥗",
+    "⚽", "🏀", "🏈", "🎾", "🎮", "🎧", "🎵", "🎸", "🎬", "📷", "🎨", "✏️", "📚", "💼", "🧠", "🏋️",
+    "🚗", "🚌", "🚲", "✈️", "🚀", "🚕", "⛵", "🏠", "🏢", "🗺️", "📍", "🌍", "🏖️", "⛰️", "🏕️", "🏨",
+    "💰", "💳", "🏦", "🛒", "🛍️", "🎁", "💎", "📈", "🧾", "💵",
+    "💻", "📱", "⌨️", "🖥️", "🔌", "📡", "☁️", "🔒", "🔑", "⚙️", "🛠️", "🔧", "💡", "🔋", "📶", "🧩",
+    "📅", "⏰", "⏱️", "📝", "📌", "📎", "🔖", "🏷️", "📊", "📁", "📂", "🗂️", "✅", "❓", "❗", "➕",
+    "🌈", "☀️", "🌙", "⛅", "🌧️", "❄️", "🌸", "🌿", "🍀", "🌵", "🌊", "🔮", "🎯", "🎲", "🧭", "🩺",
+)
+
+/** A scrollable grid of common emojis for icon selection. */
+@Composable
+internal fun EmojiPicker(modifier: Modifier = Modifier, onPick: (String) -> Unit) {
+    LazyVerticalGrid(columns = GridCells.Fixed(8), modifier = modifier) {
+        items(EMOJIS) { e ->
+            Box(
+                Modifier.padding(2.dp).size(36.dp).clip(RoundedCornerShape(8.dp)).clickable { onPick(e) },
+                contentAlignment = Alignment.Center,
+            ) { Text(e, fontSize = 22.sp) }
+        }
     }
 }
 
@@ -370,6 +398,7 @@ internal fun FolderEditScreen(
                             OutlinedTextField(lName, { lName = it }, label = { Text("Label") }, singleLine = true, modifier = Modifier.weight(1f))
                         }
                         OutlinedTextField(lUrl, { lUrl = it }, label = { Text("URL") }, singleLine = true, modifier = Modifier.fillMaxWidth().padding(top = 8.dp))
+                        EmojiPicker(Modifier.fillMaxWidth().height(120.dp).padding(top = 8.dp)) { lEmoji = it }
                     }
                 },
                 confirmButton = {
@@ -445,6 +474,8 @@ internal fun LinkEditScreen(
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
                 )
+                Text("Pick an emoji", style = MaterialTheme.typography.labelLarge, modifier = Modifier.padding(top = 8.dp, bottom = 2.dp))
+                EmojiPicker(Modifier.fillMaxWidth().height(150.dp)) { emoji = it }
                 Text(
                     "Opens the URL. If you've installed it as a PWA (added to home screen), Android opens the PWA; otherwise it opens in your browser.",
                     style = MaterialTheme.typography.bodySmall,
