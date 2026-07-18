@@ -271,7 +271,7 @@ private fun PreviewFolderCircle(f: FolderConfig, emoji: String, selected: Boolea
             shadowElevation = 0.dp,
             border = if (f.edgeDp > 0f) BorderStroke(f.edgeDp.dp, Color.White.copy(alpha = if (selected) 0.75f else 0.4f)) else null,
         ) {
-            Box(contentAlignment = Alignment.Center) { Text(emoji, fontSize = 26.sp) }
+            Box(Modifier.fillMaxSize().padding(top = 6.dp), contentAlignment = Alignment.Center) { Text(emoji, fontSize = 26.sp) }
         }
     } else {
         Box(Modifier.size(56.dp), contentAlignment = Alignment.Center) {

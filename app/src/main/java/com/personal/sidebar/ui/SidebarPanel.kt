@@ -198,9 +198,9 @@ internal fun androidx.compose.ui.graphics.drawscope.DrawScope.drawGroupDropShado
 /** Builds a file-folder outline: a body with a raised tab on the top-left. */
 internal fun folderPath(w: Float, h: Float): Path {
     val r = minOf(w, h) * 0.10f
-    val tabH = h * 0.20f
+    val tabH = h * 0.12f          // thinner flap
     val tabW = w * 0.46f
-    val slope = w * 0.10f
+    val slope = w * 0.09f
     return Path().apply {
         moveTo(r, 0f)
         lineTo(tabW, 0f)
@@ -747,7 +747,8 @@ private fun FolderCircle(
                 tonalElevation = 0.dp,
                 border = if (style.edgeDp > 0f) BorderStroke(style.edgeDp.dp, Color.White.copy(alpha = if (selected) 0.75f else 0.4f)) else null,
             ) {
-                Box(contentAlignment = Alignment.Center) { glyphContent() }
+                // Nudge the icon down so it's centered in the folder body, not the tab.
+                Box(Modifier.fillMaxSize().padding(top = 8.dp), contentAlignment = Alignment.Center) { glyphContent() }
             }
         } else {
             Box(
