@@ -6,10 +6,12 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.foundation.BorderStroke
@@ -567,13 +569,16 @@ private fun PanelContent(
             LaunchedEffect(openKey) { if (open != null) shown = open }
             AnimatedVisibility(
                 visible = open != null,
-                // Scale + fade from the tapped icon (no vertical-expand clip, which
-                // used to hide the card's drop shadow until the expand finished —
-                // the shadow now scales in seamlessly with the card). ~20% faster.
+                // Slide/expand down from the tapped icon, ~20% faster. The card
+                // reserves space for its drop shadow inside its own bounds (see
+                // FolderExpanded), so the expand reveals the shadow together with
+                // the card instead of clipping it until the animation finishes.
                 enter = fadeIn(animationSpec = tween(190)) +
-                    scaleIn(animationSpec = tween(190), transformOrigin = TransformOrigin(pivotX, 0f), initialScale = 0.5f),
+                    scaleIn(animationSpec = tween(190), transformOrigin = TransformOrigin(pivotX, 0f), initialScale = 0.5f) +
+                    expandVertically(animationSpec = tween(190), expandFrom = Alignment.Top),
                 exit = fadeOut(animationSpec = tween(150)) +
-                    scaleOut(animationSpec = tween(150), transformOrigin = TransformOrigin(pivotX, 0f), targetScale = 0.5f),
+                    scaleOut(animationSpec = tween(150), transformOrigin = TransformOrigin(pivotX, 0f), targetScale = 0.5f) +
+                    shrinkVertically(animationSpec = tween(150), shrinkTowards = Alignment.Top),
             ) {
                 Box(Modifier.padding(top = 8.dp)) {
                     shown?.let { FolderExpanded(it, style, appMap, showLabels, onLaunch) }
@@ -723,10 +728,16 @@ private fun FolderExpanded(
 ) {
     val tint = panelColor(style.brightness).copy(alpha = style.opacity.coerceIn(0f, 1f))
     val shape = RoundedCornerShape(style.cornerDp.dp)
+    // Reserve enough padding for the drop shadow to fall *inside* this
+    // composable's bounds, so the expand animation reveals it with the card
+    // instead of the AnimatedVisibility clip hiding it until the end.
     Surface(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(vertical = 4.dp)
+            .padding(
+                top = (style.shadowTopDp + 4f).dp,
+                bottom = (style.shadowBottomDp + 8f).dp,
+            )
             .drawBehind { drawSideShadows(style, style.cornerDp.dp.toPx()) },
         shape = shape,
         color = tint,
