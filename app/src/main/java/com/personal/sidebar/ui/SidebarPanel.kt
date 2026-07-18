@@ -5,12 +5,11 @@ import androidx.compose.animation.core.MutableTransitionState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.spring
-import androidx.compose.animation.expandVertically
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
-import androidx.compose.animation.shrinkVertically
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.foundation.BorderStroke
@@ -449,7 +448,7 @@ private fun PanelCard(
             }
             // Bottom bar: a Settings gear, then recent apps.
             if (appMap != null) {
-                BottomBar(recents = recents, appMap = appMap, group = group, showLabels = panel.showLabels, onLaunch = onLaunch, onOpenSettings = onOpenSettings)
+                BottomBar(recents = recents, appMap = appMap, showLabels = panel.showLabels, onLaunch = onLaunch, onOpenSettings = onOpenSettings)
             }
         }
     }
@@ -460,38 +459,30 @@ private fun PanelCard(
 private fun BottomBar(
     recents: List<String>,
     appMap: Map<String, AppInfo>,
-    group: GroupConfig,
     showLabels: Boolean,
     onLaunch: (String) -> Unit,
     onOpenSettings: () -> Unit,
 ) {
-    // A centered gear button — same outline icon set and auto-theme colour as
-    // the folders, with the same bordered, drop-shadowed frame as the groups.
+    // Bare gear, left-aligned — same outline icon set and auto-theme colour as
+    // the folders, with no background, border or shadow.
     val context = LocalContext.current
     val themeColor = remember {
         if (android.os.Build.VERSION.SDK_INT >= 31) Color(context.getColor(android.R.color.system_accent1_100))
         else Color(0xFFB9C3FF)
     }
-    val shape = RoundedCornerShape(14.dp)
     Box(Modifier.fillMaxWidth().padding(top = 2.dp), contentAlignment = Alignment.CenterStart) {
         Box(
             modifier = Modifier
-                .drawBehind { drawGroupDropShadow(14.dp.toPx(), group.shadowDp) }
-                .clip(shape)
-                .then(
-                    if (group.borderDp > 0f) {
-                        Modifier.border(group.borderDp.dp, Color.White.copy(alpha = group.borderBrightness.coerceIn(0f, 1f)), shape)
-                    } else Modifier
-                )
+                .clip(RoundedCornerShape(50))
                 .clickable(onClick = onOpenSettings)
-                .padding(horizontal = 22.dp, vertical = 8.dp),
+                .padding(6.dp),
             contentAlignment = Alignment.Center,
         ) {
             Icon(
                 Icons.Outlined.Settings,
                 contentDescription = "Settings",
                 tint = themeColor,
-                modifier = Modifier.size(22.dp),
+                modifier = Modifier.size(24.dp),
             )
         }
     }
@@ -576,10 +567,13 @@ private fun PanelContent(
             LaunchedEffect(openKey) { if (open != null) shown = open }
             AnimatedVisibility(
                 visible = open != null,
-                enter = fadeIn() + scaleIn(transformOrigin = TransformOrigin(pivotX, 0f), initialScale = 0.5f) +
-                    expandVertically(expandFrom = Alignment.Top),
-                exit = fadeOut() + scaleOut(transformOrigin = TransformOrigin(pivotX, 0f), targetScale = 0.5f) +
-                    shrinkVertically(shrinkTowards = Alignment.Top),
+                // Scale + fade from the tapped icon (no vertical-expand clip, which
+                // used to hide the card's drop shadow until the expand finished —
+                // the shadow now scales in seamlessly with the card). ~20% faster.
+                enter = fadeIn(animationSpec = tween(190)) +
+                    scaleIn(animationSpec = tween(190), transformOrigin = TransformOrigin(pivotX, 0f), initialScale = 0.5f),
+                exit = fadeOut(animationSpec = tween(150)) +
+                    scaleOut(animationSpec = tween(150), transformOrigin = TransformOrigin(pivotX, 0f), targetScale = 0.5f),
             ) {
                 Box(Modifier.padding(top = 8.dp)) {
                     shown?.let { FolderExpanded(it, style, appMap, showLabels, onLaunch) }
