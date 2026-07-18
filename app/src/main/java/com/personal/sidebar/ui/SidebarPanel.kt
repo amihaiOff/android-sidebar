@@ -343,6 +343,30 @@ internal fun themedIconBitmap(src: android.graphics.drawable.Drawable, sizePx: I
     return bmp
 }
 
+/**
+ * Finds an installed *web app* (a WebAPK / PWA) whose package specifically claims
+ * [uri], as opposed to a general-purpose browser. Returns its package name, or
+ * null if only browsers (or nothing) handle it. Works by diffing the handlers of
+ * the real URL against the handlers of a host no app would claim — whatever's
+ * left over is a URL-specific handler, i.e. the installed web app.
+ */
+internal fun webAppHandlerFor(context: android.content.Context, uri: android.net.Uri): String? {
+    val pm = context.packageManager
+    val self = context.packageName
+    fun handlers(u: android.net.Uri): Set<String> = runCatching {
+        pm.queryIntentActivities(
+            android.content.Intent(android.content.Intent.ACTION_VIEW, u)
+                .addCategory(android.content.Intent.CATEGORY_BROWSABLE),
+            0,
+        ).mapNotNull { it.activityInfo?.packageName }.toSet()
+    }.getOrDefault(emptySet())
+
+    val specific = handlers(uri)
+    if (specific.isEmpty()) return null
+    val browsers = handlers(android.net.Uri.parse("https://no-app-claims-this-host.example/"))
+    return (specific - browsers - self).firstOrNull()
+}
+
 private const val COLUMNS = 4
 
 /**
@@ -397,21 +421,26 @@ fun SidebarPanel(
         )
         dismiss()
     }
-    // Open a web link / PWA. If a target app is set (e.g. the browser that
-    // installed the PWA), the URL is sent straight to it so it opens standalone.
-    // Otherwise we prefer any installed non-browser handler (a real WebAPK),
-    // falling back to the default browser.
+    // Open a web link / PWA. Order of preference:
+    //  1. an explicit "Open with" target the user picked;
+    //  2. an installed web app (WebAPK) that specifically claims this URL — so a
+    //     Chrome-installed PWA opens standalone instead of in a browser tab;
+    //  3. the system's prefer-non-browser flag; then 4. the default browser.
     val onOpenLink: (String, String?) -> Unit = { url, pkg ->
-        val base = android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(url))
+        val uri = android.net.Uri.parse(url)
+        val base = android.content.Intent(android.content.Intent.ACTION_VIEW, uri)
             .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
         var launched = false
         if (!pkg.isNullOrBlank()) {
-            val targeted = android.content.Intent(base).setPackage(pkg)
-            launched = runCatching { context.startActivity(targeted) }.isSuccess
+            launched = runCatching { context.startActivity(android.content.Intent(base).setPackage(pkg)) }.isSuccess
+        }
+        if (!launched) {
+            val webApp = webAppHandlerFor(context, uri)
+            if (webApp != null) {
+                launched = runCatching { context.startActivity(android.content.Intent(base).setPackage(webApp)) }.isSuccess
+            }
         }
         if (!launched && android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R) {
-            // REQUIRE_NON_BROWSER throws if only browsers can handle the URL, so
-            // this launches a WebAPK when present and lets us fall back otherwise.
             val nonBrowser = android.content.Intent(base)
                 .addFlags(android.content.Intent.FLAG_ACTIVITY_REQUIRE_NON_BROWSER)
             launched = runCatching { context.startActivity(nonBrowser) }.isSuccess
