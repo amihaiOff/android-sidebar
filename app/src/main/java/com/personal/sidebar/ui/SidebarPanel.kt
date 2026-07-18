@@ -59,10 +59,17 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.Outline
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.TransformOrigin
+import androidx.compose.ui.graphics.asAndroidPath
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.unit.Density
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
 import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.layout.onGloballyPositioned
@@ -184,6 +191,54 @@ internal fun androidx.compose.ui.graphics.drawscope.DrawScope.drawGroupDropShado
         val save = nc.save()
         nc.clipOutPath(cardPath) // keep the shadow outside the (translucent) card
         nc.drawRoundRect(0f, dy, w, h + dy, cornerPx, cornerPx, paint)
+        nc.restoreToCount(save)
+    }
+}
+
+/** Builds a file-folder outline: a body with a raised tab on the top-left. */
+internal fun folderPath(w: Float, h: Float): Path {
+    val r = minOf(w, h) * 0.10f
+    val tabH = h * 0.20f
+    val tabW = w * 0.46f
+    val slope = w * 0.10f
+    return Path().apply {
+        moveTo(r, 0f)
+        lineTo(tabW, 0f)
+        lineTo(tabW + slope, tabH)          // step down from the tab to the body
+        lineTo(w - r, tabH)
+        quadraticBezierTo(w, tabH, w, tabH + r)
+        lineTo(w, h - r)
+        quadraticBezierTo(w, h, w - r, h)
+        lineTo(r, h)
+        quadraticBezierTo(0f, h, 0f, h - r)
+        lineTo(0f, r)
+        quadraticBezierTo(0f, 0f, r, 0f)
+        close()
+    }
+}
+
+/** A [Shape] in the form of a file folder. */
+internal val FolderTileShape: Shape = object : Shape {
+    override fun createOutline(size: Size, layoutDirection: LayoutDirection, density: Density): Outline =
+        Outline.Generic(folderPath(size.width, size.height))
+}
+
+/** Soft outward drop shadow that follows the folder outline. */
+internal fun androidx.compose.ui.graphics.drawscope.DrawScope.drawFolderShadow(extentDp: Float) {
+    val e = extentDp.dp.toPx()
+    if (e <= 0f) return
+    val base = folderPath(size.width, size.height).asAndroidPath()
+    val paint = android.graphics.Paint().apply {
+        isAntiAlias = true
+        color = android.graphics.Color.argb(140, 0, 0, 0)
+        maskFilter = android.graphics.BlurMaskFilter(e, android.graphics.BlurMaskFilter.Blur.NORMAL)
+    }
+    val shadow = android.graphics.Path(base).apply { offset(0f, e * 0.35f) }
+    drawIntoCanvas { canvas ->
+        val nc = canvas.nativeCanvas
+        val save = nc.save()
+        nc.clipOutPath(base) // keep the shadow outside the (translucent) tile
+        nc.drawPath(shadow, paint)
         nc.restoreToCount(save)
     }
 }
@@ -684,9 +739,9 @@ private fun FolderCircle(
             Surface(
                 modifier = Modifier
                     .size(66.dp)
-                    .drawBehind { drawGroupDropShadow(style.cornerDp.dp.toPx(), shadow) }
+                    .drawBehind { drawFolderShadow(shadow) }
                     .clickable(onClick = onClick),
-                shape = RoundedCornerShape(style.cornerDp.dp),
+                shape = FolderTileShape,
                 color = panelColor(style.brightness).copy(alpha = style.opacity.coerceIn(0f, 1f)),
                 shadowElevation = 0.dp,
                 tonalElevation = 0.dp,

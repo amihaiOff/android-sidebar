@@ -50,6 +50,8 @@ import androidx.compose.ui.unit.sp
 import com.personal.sidebar.model.FolderConfig
 import com.personal.sidebar.model.GroupConfig
 import com.personal.sidebar.model.PanelConfig
+import com.personal.sidebar.ui.FolderTileShape
+import com.personal.sidebar.ui.drawFolderShadow
 import com.personal.sidebar.ui.drawGroupDropShadow
 import com.personal.sidebar.ui.drawInnerShadow
 import com.personal.sidebar.ui.drawSideShadows
@@ -261,16 +263,15 @@ private fun GlassPreview(p: PanelConfig, f: FolderConfig, g: GroupConfig) {
 private fun PreviewFolderCircle(f: FolderConfig, emoji: String, selected: Boolean) {
     if (f.iconBackground) {
         val tint = labTint(f.brightness).copy(alpha = f.opacity.coerceIn(0f, 1f))
-        val elevation = (maxOf(f.shadowTopDp, f.shadowBottomDp, f.shadowLeftDp, f.shadowRightDp) * 0.6f)
-            .coerceIn(0f, 16f).dp
+        val shadow = maxOf(f.shadowTopDp, f.shadowBottomDp, f.shadowLeftDp, f.shadowRightDp).coerceIn(0f, 24f)
         Surface(
-            modifier = Modifier.size(56.dp),
-            shape = RoundedCornerShape(f.cornerDp.dp),
+            modifier = Modifier.size(56.dp).drawBehind { drawFolderShadow(shadow) },
+            shape = FolderTileShape,
             color = tint,
-            shadowElevation = elevation,
+            shadowElevation = 0.dp,
             border = if (f.edgeDp > 0f) BorderStroke(f.edgeDp.dp, Color.White.copy(alpha = if (selected) 0.75f else 0.4f)) else null,
         ) {
-            Box(contentAlignment = Alignment.Center) { Text(emoji, fontSize = 30.sp) }
+            Box(contentAlignment = Alignment.Center) { Text(emoji, fontSize = 26.sp) }
         }
     } else {
         Box(Modifier.size(56.dp), contentAlignment = Alignment.Center) {
