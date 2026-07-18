@@ -70,6 +70,7 @@ import androidx.compose.ui.graphics.asAndroidPath
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.LayoutDirection
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
 import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.layout.onGloballyPositioned
@@ -240,6 +241,44 @@ internal fun androidx.compose.ui.graphics.drawscope.DrawScope.drawFolderShadow(e
         nc.clipOutPath(base) // keep the shadow outside the (translucent) tile
         nc.drawPath(shadow, paint)
         nc.restoreToCount(save)
+    }
+}
+
+/** The front pocket of an open two-tone folder (a rounded card with an angled top). */
+internal fun folderFrontPath(w: Float, h: Float): Path {
+    val r = minOf(w, h) * 0.10f
+    val topL = h * 0.38f
+    val topR = h * 0.30f          // right edge sits higher → the "open" tilt
+    val left = w * 0.04f
+    val right = w * 0.985f
+    return Path().apply {
+        moveTo(left + r, topL)
+        lineTo(right - r, topR)
+        quadraticBezierTo(right, topR, right, topR + r)
+        lineTo(right, h - r)
+        quadraticBezierTo(right, h, right - r, h)
+        lineTo(left + r, h)
+        quadraticBezierTo(left, h, left, h - r)
+        lineTo(left, topL + r)
+        quadraticBezierTo(left, topL, left + r, topL)
+        close()
+    }
+}
+
+/** Draws the open two-tone folder: a darker back panel (with tab) + lighter front. */
+internal fun androidx.compose.ui.graphics.drawscope.DrawScope.drawTwoToneFolder(
+    back: Color,
+    front: Color,
+    edge: Color,
+    edgePx: Float,
+) {
+    val backPath = folderPath(size.width, size.height)
+    drawPath(backPath, back)
+    val frontPath = folderFrontPath(size.width, size.height)
+    drawPath(frontPath, front)
+    if (edgePx > 0f) {
+        drawPath(backPath, edge, style = Stroke(edgePx))
+        drawPath(frontPath, edge, style = Stroke(edgePx))
     }
 }
 
@@ -717,8 +756,8 @@ private fun FolderCircle(
         else Color(0xFFB9C3FF)
     }
     // Smaller inside the folder tile so it stays proportional to the shape.
-    val iconDp = if (style.iconBackground) 30.dp else 40.dp
-    val emojiSp = if (style.iconBackground) 28.sp else 44.sp
+    val iconDp = if (style.iconBackground) 28.dp else 40.dp
+    val emojiSp = if (style.iconBackground) 26.sp else 44.sp
     val glyphContent: @Composable () -> Unit = {
         val vector = com.personal.sidebar.FolderIcons.icon(folder.iconKey)
         if (vector != null) {
@@ -739,19 +778,21 @@ private fun FolderCircle(
             // elevation, which bleeds through the translucent tile as a faint
             // square behind the icon).
             val shadow = maxOf(style.shadowTopDp, style.shadowBottomDp, style.shadowLeftDp, style.shadowRightDp).coerceIn(0f, 24f)
-            Surface(
+            val op = style.opacity.coerceIn(0f, 1f)
+            val back = panelColor(style.brightness).copy(alpha = op)
+            val front = panelColor((style.brightness + 0.16f).coerceIn(0f, 1f)).copy(alpha = op)
+            val edgeColor = Color.White.copy(alpha = if (selected) 0.75f else 0.4f)
+            Box(
                 modifier = Modifier
                     .size(66.dp)
-                    .drawBehind { drawFolderShadow(shadow) }
+                    .drawBehind {
+                        drawFolderShadow(shadow)
+                        drawTwoToneFolder(back, front, edgeColor, if (style.edgeDp > 0f) style.edgeDp.dp.toPx() else 0f)
+                    }
                     .clickable(onClick = onClick),
-                shape = FolderTileShape,
-                color = panelColor(style.brightness).copy(alpha = style.opacity.coerceIn(0f, 1f)),
-                shadowElevation = 0.dp,
-                tonalElevation = 0.dp,
-                border = if (style.edgeDp > 0f) BorderStroke(style.edgeDp.dp, Color.White.copy(alpha = if (selected) 0.75f else 0.4f)) else null,
             ) {
-                // Nudge the icon down so it's centered in the folder body, not the tab.
-                Box(Modifier.fillMaxSize().padding(top = 8.dp), contentAlignment = Alignment.Center) { glyphContent() }
+                // Sit the icon on the lighter front pocket.
+                Box(Modifier.fillMaxSize().padding(top = 22.dp), contentAlignment = Alignment.Center) { glyphContent() }
             }
         } else {
             Box(

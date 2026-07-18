@@ -50,8 +50,8 @@ import androidx.compose.ui.unit.sp
 import com.personal.sidebar.model.FolderConfig
 import com.personal.sidebar.model.GroupConfig
 import com.personal.sidebar.model.PanelConfig
-import com.personal.sidebar.ui.FolderTileShape
 import com.personal.sidebar.ui.drawFolderShadow
+import com.personal.sidebar.ui.drawTwoToneFolder
 import com.personal.sidebar.ui.drawGroupDropShadow
 import com.personal.sidebar.ui.drawInnerShadow
 import com.personal.sidebar.ui.drawSideShadows
@@ -262,16 +262,18 @@ private fun GlassPreview(p: PanelConfig, f: FolderConfig, g: GroupConfig) {
 @Composable
 private fun PreviewFolderCircle(f: FolderConfig, emoji: String, selected: Boolean) {
     if (f.iconBackground) {
-        val tint = labTint(f.brightness).copy(alpha = f.opacity.coerceIn(0f, 1f))
+        val op = f.opacity.coerceIn(0f, 1f)
+        val back = labTint(f.brightness).copy(alpha = op)
+        val front = labTint((f.brightness + 0.16f).coerceIn(0f, 1f)).copy(alpha = op)
+        val edge = Color.White.copy(alpha = if (selected) 0.75f else 0.4f)
         val shadow = maxOf(f.shadowTopDp, f.shadowBottomDp, f.shadowLeftDp, f.shadowRightDp).coerceIn(0f, 24f)
-        Surface(
-            modifier = Modifier.size(56.dp).drawBehind { drawFolderShadow(shadow) },
-            shape = FolderTileShape,
-            color = tint,
-            shadowElevation = 0.dp,
-            border = if (f.edgeDp > 0f) BorderStroke(f.edgeDp.dp, Color.White.copy(alpha = if (selected) 0.75f else 0.4f)) else null,
+        Box(
+            modifier = Modifier.size(56.dp).drawBehind {
+                drawFolderShadow(shadow)
+                drawTwoToneFolder(back, front, edge, if (f.edgeDp > 0f) f.edgeDp.dp.toPx() else 0f)
+            },
         ) {
-            Box(Modifier.fillMaxSize().padding(top = 6.dp), contentAlignment = Alignment.Center) { Text(emoji, fontSize = 26.sp) }
+            Box(Modifier.fillMaxSize().padding(top = 18.dp), contentAlignment = Alignment.Center) { Text(emoji, fontSize = 22.sp) }
         }
     } else {
         Box(Modifier.size(56.dp), contentAlignment = Alignment.Center) {
