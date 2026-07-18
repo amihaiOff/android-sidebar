@@ -716,14 +716,17 @@ private fun FolderCircle(
         if (android.os.Build.VERSION.SDK_INT >= 31) Color(context.getColor(android.R.color.system_accent1_100))
         else Color(0xFFB9C3FF)
     }
+    // Smaller inside the folder tile so it stays proportional to the shape.
+    val iconDp = if (style.iconBackground) 30.dp else 40.dp
+    val emojiSp = if (style.iconBackground) 28.sp else 44.sp
     val glyphContent: @Composable () -> Unit = {
         val vector = com.personal.sidebar.FolderIcons.icon(folder.iconKey)
         if (vector != null) {
             val tint = folder.colorArgb?.let { Color(it) } ?: themeColor
-            Icon(vector, contentDescription = folder.name, tint = tint, modifier = Modifier.size(40.dp))
+            Icon(vector, contentDescription = folder.name, tint = tint, modifier = Modifier.size(iconDp))
         } else {
             val glyph = folder.emoji?.takeIf { it.isNotBlank() } ?: folder.name?.take(1) ?: "📁"
-            Text(glyph, fontSize = 44.sp)
+            Text(glyph, fontSize = emojiSp)
         }
     }
     Column(
