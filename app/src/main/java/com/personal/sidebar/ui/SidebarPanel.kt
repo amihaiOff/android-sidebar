@@ -703,7 +703,7 @@ private fun PanelContent(
                     shrinkVertically(animationSpec = tween(150), shrinkTowards = Alignment.Top),
             ) {
                 Box(Modifier.padding(top = 8.dp)) {
-                    shown?.let { FolderExpanded(it, style, appMap, showLabels, onLaunch) }
+                    shown?.let { FolderExpanded(it, style, appMap, showLabels, onLaunch, onOpenLink) }
                 }
             }
         }
@@ -750,12 +750,13 @@ private fun PanelContent(
                             )
                         }
                         AppGrid(
-                            items = g.packages.map { SidebarItem.app(it) },
+                            items = g.packages.map { SidebarItem.app(it) } + g.links,
                             cols = COLUMNS,
                             appMap = appMap,
                             showLabels = showLabels,
                             modifier = Modifier,
                             onLaunch = onLaunch,
+                            onOpenLink = onOpenLink,
                             tileAlign = Alignment.Start,
                         )
                     }
@@ -853,6 +854,7 @@ private fun FolderExpanded(
     appMap: Map<String, AppInfo>,
     showLabels: Boolean,
     onLaunch: (String) -> Unit,
+    onOpenLink: (String, String?) -> Unit,
 ) {
     val tint = panelColor(style.brightness).copy(alpha = style.opacity.coerceIn(0f, 1f))
     val shape = RoundedCornerShape(style.cornerDp.dp)
@@ -875,12 +877,13 @@ private fun FolderExpanded(
     ) {
         Column(Modifier.padding(10.dp)) {
             AppGrid(
-                items = folder.packages.map { SidebarItem.app(it) },
+                items = folder.packages.map { SidebarItem.app(it) } + folder.links,
                 cols = style.columns.coerceIn(2, 5),
                 appMap = appMap,
                 showLabels = showLabels,
                 modifier = Modifier,
                 onLaunch = onLaunch,
+                onOpenLink = onOpenLink,
             )
         }
     }

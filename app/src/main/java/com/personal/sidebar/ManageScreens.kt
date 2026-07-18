@@ -28,6 +28,9 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.outlined.Language
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilterChip
@@ -226,6 +229,8 @@ internal fun FolderEditScreen(
     var colorArgb by remember { mutableStateOf(existing?.colorArgb) }
     var iconQuery by remember { mutableStateOf("") }
     val selected = remember { mutableStateListOf<String>().apply { existing?.packages?.let { addAll(it) } } }
+    val links = remember { mutableStateListOf<SidebarItem>().apply { existing?.links?.let { addAll(it) } } }
+    var showLinkDialog by remember { mutableStateOf(false) }
     val noun = if (asGroup) "group" else "folder"
 
     Box(modifier.fillMaxSize()) {
@@ -233,13 +238,14 @@ internal fun FolderEditScreen(
             title = (if (existing == null) "New " else "Edit ") + noun,
             trailingLabel = "Save",
             // Name is optional for folders (the icon is the identity); groups
-            // still want a title.
-            trailingEnabled = all != null && selected.isNotEmpty() && (!asGroup || name.isNotBlank()),
+            // still want a title. Needs at least one member (app or link).
+            trailingEnabled = all != null && (selected.isNotEmpty() || links.isNotEmpty()) && (!asGroup || name.isNotBlank()),
             onBack = onCancel,
             onTrailing = {
                 onSave(
-                    if (asGroup) SidebarItem.group(name.trim(), selected.toList())
-                    else SidebarItem.folder(name.trim(), selected.toList(), existing?.emoji, iconKey, colorArgb)
+                    (if (asGroup) SidebarItem.group(name.trim(), selected.toList())
+                    else SidebarItem.folder(name.trim(), selected.toList(), existing?.emoji, iconKey, colorArgb))
+                        .copy(links = links.toList())
                 )
             },
         ) {
@@ -304,6 +310,35 @@ internal fun FolderEditScreen(
                 }
             }
 
+            // Links in this folder/group.
+            Row(
+                Modifier.fillMaxWidth().padding(start = 8.dp, end = 4.dp, top = 4.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text("Links", style = MaterialTheme.typography.labelLarge, modifier = Modifier.weight(1f))
+                TextButton(onClick = { showLinkDialog = true }) { Text("Add link") }
+            }
+            links.forEachIndexed { i, link ->
+                Row(
+                    Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 2.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    val glyph = link.emoji?.takeIf { it.isNotBlank() }
+                    if (glyph != null) {
+                        Text(glyph, modifier = Modifier.width(28.dp))
+                    } else {
+                        Icon(Icons.Outlined.Language, contentDescription = null, modifier = Modifier.size(22.dp), tint = MaterialTheme.colorScheme.primary)
+                        Spacer(Modifier.width(6.dp))
+                    }
+                    Spacer(Modifier.width(6.dp))
+                    Column(Modifier.weight(1f)) {
+                        Text(link.name?.ifBlank { null } ?: "Link", style = MaterialTheme.typography.bodyMedium)
+                        Text(link.url ?: "", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
+                    }
+                    IconButton(onClick = { links.removeAt(i) }) { Icon(Icons.Filled.Close, contentDescription = "Remove link") }
+                }
+            }
+
             if (onDelete != null) {
                 TextButton(onClick = onDelete, modifier = Modifier.padding(start = 4.dp)) {
                     Text("Delete $noun", color = MaterialTheme.colorScheme.error)
@@ -318,6 +353,37 @@ internal fun FolderEditScreen(
                     onToggle = { if (!selected.remove(it)) selected.add(it) },
                 )
             }
+        }
+
+        if (showLinkDialog) {
+            var lEmoji by remember { mutableStateOf("") }
+            var lName by remember { mutableStateOf("") }
+            var lUrl by remember { mutableStateOf("https://") }
+            val urlOk = lUrl.trim().length > "https://".length && lUrl.contains(".")
+            AlertDialog(
+                onDismissRequest = { showLinkDialog = false },
+                title = { Text("Add link") },
+                text = {
+                    Column {
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            OutlinedTextField(lEmoji, { lEmoji = it.take(4) }, label = { Text("Emoji") }, singleLine = true, modifier = Modifier.width(92.dp))
+                            OutlinedTextField(lName, { lName = it }, label = { Text("Label") }, singleLine = true, modifier = Modifier.weight(1f))
+                        }
+                        OutlinedTextField(lUrl, { lUrl = it }, label = { Text("URL") }, singleLine = true, modifier = Modifier.fillMaxWidth().padding(top = 8.dp))
+                    }
+                },
+                confirmButton = {
+                    TextButton(
+                        enabled = lName.isNotBlank() && urlOk,
+                        onClick = {
+                            val u = lUrl.trim().let { if (it.startsWith("http://") || it.startsWith("https://")) it else "https://$it" }
+                            links.add(SidebarItem.link(lName.trim(), u, lEmoji.trim().ifBlank { null }))
+                            showLinkDialog = false
+                        },
+                    ) { Text("Add") }
+                },
+                dismissButton = { TextButton(onClick = { showLinkDialog = false }) { Text("Cancel") } },
+            )
         }
     }
 }

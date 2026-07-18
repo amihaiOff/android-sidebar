@@ -573,7 +573,8 @@ private fun ReorderableItems(
                         Column(Modifier.weight(1f)) {
                             Text(item.name ?: if (item.type == ItemType.GROUP) "Group" else "Folder", style = MaterialTheme.typography.bodyLarge)
                             val kind = if (item.type == ItemType.GROUP) "group" else "folder"
-                            Text("${item.packages.size} apps · $kind", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            val count = item.packages.size + item.links.size
+                            Text("$count items · $kind", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                         IconButton(onClick = { onEditFolder(currentIndex) }) { Icon(Icons.Filled.Edit, contentDescription = "Edit") }
                     } else if (item.type == ItemType.LINK) {

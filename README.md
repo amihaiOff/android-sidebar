@@ -43,7 +43,8 @@ running handle re-arms on each change):
   apps below**, animating out from the tapped icon. Opening a folder dims the
   rest of the panel. Edit/delete folders from settings.
 - **Groups** — **New group**: a titled section of apps shown inline in the main
-  grid (always visible, unlike folders).
+  grid (always visible, unlike folders). Folders and groups can also hold
+  **links** (add them in the editor), not just installed apps.
 - **Links / PWAs** — **Add link / PWA**: a tile that opens a URL. Give it a
   label, an optional **emoji** icon (a globe is used otherwise) and the URL. If
   you've installed the site as a PWA (added it to your home screen as a WebAPK),

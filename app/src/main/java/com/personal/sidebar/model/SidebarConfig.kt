@@ -30,6 +30,8 @@ data class SidebarItem(
     val targetPackage: String? = null,
     /** Member package names for [ItemType.FOLDER] / [ItemType.GROUP]. */
     val packages: List<String> = emptyList(),
+    /** Link members (each an [ItemType.LINK]) for a [ItemType.FOLDER] / [ItemType.GROUP]. */
+    val links: List<SidebarItem> = emptyList(),
 ) {
     companion object {
         fun app(pkg: String) = SidebarItem(ItemType.APP, packageName = pkg)
