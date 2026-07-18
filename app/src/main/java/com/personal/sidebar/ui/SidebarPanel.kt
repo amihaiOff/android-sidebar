@@ -247,20 +247,19 @@ internal fun androidx.compose.ui.graphics.drawscope.DrawScope.drawFolderShadow(e
 /** The front pocket of an open two-tone folder (a rounded card with an angled top). */
 internal fun folderFrontPath(w: Float, h: Float): Path {
     val r = minOf(w, h) * 0.10f
-    val topL = h * 0.38f
-    val topR = h * 0.30f          // right edge sits higher → the "open" tilt
+    val top = h * 0.20f           // high, just below the flap; straight (not tilted)
     val left = w * 0.04f
     val right = w * 0.985f
     return Path().apply {
-        moveTo(left + r, topL)
-        lineTo(right - r, topR)
-        quadraticBezierTo(right, topR, right, topR + r)
+        moveTo(left + r, top)
+        lineTo(right - r, top)
+        quadraticBezierTo(right, top, right, top + r)
         lineTo(right, h - r)
         quadraticBezierTo(right, h, right - r, h)
         lineTo(left + r, h)
         quadraticBezierTo(left, h, left, h - r)
-        lineTo(left, topL + r)
-        quadraticBezierTo(left, topL, left + r, topL)
+        lineTo(left, top + r)
+        quadraticBezierTo(left, top, left + r, top)
         close()
     }
 }
@@ -792,7 +791,7 @@ private fun FolderCircle(
                     .clickable(onClick = onClick),
             ) {
                 // Sit the icon on the lighter front pocket.
-                Box(Modifier.fillMaxSize().padding(top = 22.dp), contentAlignment = Alignment.Center) { glyphContent() }
+                Box(Modifier.fillMaxSize().padding(top = 13.dp), contentAlignment = Alignment.Center) { glyphContent() }
             }
         } else {
             Box(

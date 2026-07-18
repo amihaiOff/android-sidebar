@@ -20,6 +20,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -125,7 +126,6 @@ internal fun GlassLabScreen(
         }
         LabSlider("Background dim", p.scrimAlpha, 0f..0.85f, "${(p.scrimAlpha * 100).roundToInt()}%") { setP(p.copy(scrimAlpha = it)) }
 
-        Spacer(Modifier.height(16.dp))
         SectionLabel("Folder")
         Text(
             "These style the styled folder tile (if on) and the expanded folder card.",
@@ -145,7 +145,6 @@ internal fun GlassLabScreen(
         LabSlider("Shadow left", f.shadowLeftDp, 0f..30f, "${f.shadowLeftDp.roundToInt()} dp") { setF(f.copy(shadowLeftDp = it)) }
         LabSlider("Shadow right", f.shadowRightDp, 0f..30f, "${f.shadowRightDp.roundToInt()} dp") { setF(f.copy(shadowRightDp = it)) }
 
-        Spacer(Modifier.height(16.dp))
         SectionLabel("Group frame")
         Text(
             "A subtle border around each titled group in the main panel.",
@@ -273,7 +272,7 @@ private fun PreviewFolderCircle(f: FolderConfig, emoji: String, selected: Boolea
                 drawTwoToneFolder(back, front, edge, if (f.edgeDp > 0f) f.edgeDp.dp.toPx() else 0f)
             },
         ) {
-            Box(Modifier.fillMaxSize().padding(top = 18.dp), contentAlignment = Alignment.Center) { Text(emoji, fontSize = 22.sp) }
+            Box(Modifier.fillMaxSize().padding(top = 11.dp), contentAlignment = Alignment.Center) { Text(emoji, fontSize = 22.sp) }
         }
     } else {
         Box(Modifier.size(56.dp), contentAlignment = Alignment.Center) {
@@ -350,7 +349,17 @@ private fun ToggleRow(label: String, checked: Boolean, onChange: (Boolean) -> Un
 
 @Composable
 private fun SectionLabel(text: String) {
-    Text(text, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(bottom = 2.dp))
+    HorizontalDivider(
+        modifier = Modifier.padding(top = 6.dp),
+        color = MaterialTheme.colorScheme.outlineVariant,
+    )
+    Text(
+        text,
+        style = MaterialTheme.typography.titleMedium,
+        fontWeight = FontWeight.Bold,
+        color = MaterialTheme.colorScheme.primary,
+        modifier = Modifier.padding(top = 14.dp, bottom = 8.dp),
+    )
 }
 
 @Composable
