@@ -20,6 +20,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -44,6 +45,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInParent
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -85,6 +87,11 @@ internal fun GlassLabScreen(
     onChange: (PanelConfig, FolderConfig, GroupConfig) -> Unit,
     onBack: () -> Unit,
 ) {
+    val context = LocalContext.current
+    val blurAvailable = remember {
+        android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S &&
+            (context.getSystemService(android.content.Context.WINDOW_SERVICE) as android.view.WindowManager).isCrossWindowBlurEnabled
+    }
     var p by remember { mutableStateOf(panel) }
     var f by remember { mutableStateOf(folder) }
     var g by remember { mutableStateOf(group) }
@@ -108,6 +115,20 @@ internal fun GlassLabScreen(
         Column(Modifier.weight(1f).verticalScroll(rememberScrollState())) {
         SectionLabel("Panel")
         LabSlider("Frost (blur)", p.blurDp.toFloat(), 0f..80f, "${p.blurDp} dp") { setP(p.copy(blurDp = it.toInt())) }
+        if (!blurAvailable) {
+            Row(
+                Modifier.fillMaxWidth().padding(top = 2.dp, bottom = 4.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+            ) {
+                Icon(Icons.Outlined.Info, contentDescription = null, tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(16.dp))
+                Text(
+                    "Hardware blur is off (usually battery saver) — showing a software frost. Turn off battery saver for the real glass blur.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.error,
+                )
+            }
+        }
         LabSlider("Tint opacity", p.opacity, 0.1f..1f, "${(p.opacity * 100).roundToInt()}%") { setP(p.copy(opacity = it)) }
         LabSlider("Brightness", p.brightness, 0f..1f, "${(p.brightness * 100).roundToInt()}%") { setP(p.copy(brightness = it)) }
         LabSlider("Edge stroke", p.edgeDp, 0f..4f, "${p.edgeDp.roundToInt()} dp") { setP(p.copy(edgeDp = it)) }
