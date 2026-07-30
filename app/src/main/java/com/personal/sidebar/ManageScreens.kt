@@ -66,7 +66,9 @@ import com.personal.sidebar.model.SidebarItem
 internal fun rememberAllApps(): List<AppInfo>? {
     val context = LocalContext.current
     var apps by remember { mutableStateOf<List<AppInfo>?>(null) }
-    LaunchedEffect(Unit) { apps = AppRepository.load(context) }
+    // Force a fresh query each time the picker opens so a just-installed app
+    // shows up even if the process (and its cache) is still alive.
+    LaunchedEffect(Unit) { apps = AppRepository.load(context, refresh = true) }
     return apps
 }
 
