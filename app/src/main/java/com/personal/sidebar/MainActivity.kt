@@ -101,6 +101,13 @@ private fun SidebarRoot() {
     var running by remember { mutableStateOf(Settings.enabled(context)) }
     var screen by remember { mutableStateOf<Screen>(Screen.Home) }
 
+    // Re-arm the handle whenever the app is opened. Covers reboots and OEM
+    // process-kills where the boot receiver was blocked — starting the
+    // foreground service from a visible activity is always permitted.
+    LaunchedEffect(Unit) {
+        if (running && Permissions.canDrawOverlays(context)) SidebarService.start(context)
+    }
+
     fun commit(new: SidebarConfig) {
         config = new
         Settings.setConfig(context, new)
@@ -232,6 +239,8 @@ private fun HomeScreen(
                 overlayGranted = Permissions.canDrawOverlays(context)
                 batteryExempt = Permissions.isIgnoringBatteryOptimizations(context)
                 usageGranted = Permissions.hasUsageAccess(context)
+                // Restart the handle if it was killed while we were away.
+                if (running && overlayGranted) SidebarService.start(context)
             }
         }
         lifecycleOwner.lifecycle.addObserver(observer)

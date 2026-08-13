@@ -85,9 +85,13 @@ class SidebarService : Service() {
         const val ACTION_REFRESH = "com.personal.sidebar.REFRESH"
 
         fun start(context: Context) {
-            ContextCompat.startForegroundService(
-                context, Intent(context, SidebarService::class.java)
-            )
+            // May throw if the OS blocks starting a foreground service from the
+            // background (e.g. an OEM-blocked boot broadcast); don't crash.
+            runCatching {
+                ContextCompat.startForegroundService(
+                    context, Intent(context, SidebarService::class.java)
+                )
+            }
         }
 
         fun stop(context: Context) {
