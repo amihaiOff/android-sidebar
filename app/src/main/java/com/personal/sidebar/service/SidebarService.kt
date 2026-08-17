@@ -14,8 +14,14 @@ import com.personal.sidebar.MainActivity
 import com.personal.sidebar.R
 import com.personal.sidebar.Settings
 import com.personal.sidebar.SidebarApp
+import com.personal.sidebar.apps.AppRepository
 import com.personal.sidebar.overlay.EdgeHandle
 import com.personal.sidebar.overlay.PanelController
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.launch
 
 /**
  * Foreground service that hosts the edge handle and the on-demand panel. It runs
@@ -26,6 +32,7 @@ class SidebarService : Service() {
 
     private lateinit var edgeHandle: EdgeHandle
     private lateinit var panel: PanelController
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
     override fun onCreate() {
         super.onCreate()
@@ -35,6 +42,9 @@ class SidebarService : Service() {
             if (!panel.isShowing) panel.show(Settings.config(this))
         }
         edgeHandle.show(Settings.config(this).handle)
+        // Pre-resolve the panel's icons now so the first open is instant instead
+        // of showing the loading spinner while it enumerates apps.
+        warm()
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -42,6 +52,7 @@ class SidebarService : Service() {
             // Config changed while running: re-place the handle, drop any open panel.
             panel.hide()
             edgeHandle.show(Settings.config(this).handle)
+            warm() // curated set may have changed — re-warm for an instant open
         }
         return START_STICKY
     }
@@ -49,7 +60,13 @@ class SidebarService : Service() {
     override fun onDestroy() {
         if (::panel.isInitialized) panel.hide()
         if (::edgeHandle.isInitialized) edgeHandle.hide()
+        scope.cancel()
         super.onDestroy()
+    }
+
+    private fun warm() {
+        val items = Settings.config(this).items
+        scope.launch { runCatching { AppRepository.warm(applicationContext, items) } }
     }
 
     override fun onBind(intent: Intent?): IBinder? = null

@@ -439,17 +439,22 @@ fun SidebarPanel(
     }
 
     var appMap by remember { mutableStateOf<Map<String, AppInfo>?>(null) }
-    LaunchedEffect(Unit) { appMap = AppRepository.map(context) }
-
-    // Phone-wide recents when Usage access is granted; otherwise the apps most
-    // recently launched from the sidebar itself.
     var recents by remember { mutableStateOf<List<String>>(emptyList()) }
-    LaunchedEffect(appMap) {
-        val map = appMap ?: return@LaunchedEffect
-        recents = withContext(kotlinx.coroutines.Dispatchers.IO) {
-            com.personal.sidebar.apps.Recents.recentApps(context, map.keys, 4)
+    // Resolve icons/labels for ONLY what the panel shows — the curated items plus
+    // recents — instead of enumerating the whole drawer (an icon decode per
+    // installed app, which caused the multi-second spinner). Recents are filtered
+    // against the cheap set of launchable package names (no icon decode). This
+    // hits a warm cache when the service pre-warmed it, so the panel opens instantly.
+    LaunchedEffect(Unit) {
+        val launchable = AppRepository.launchablePackages(context)
+        // Phone-wide recents when Usage access is granted; otherwise the apps
+        // most recently launched from the sidebar itself.
+        val recent = withContext(kotlinx.coroutines.Dispatchers.IO) {
+            com.personal.sidebar.apps.Recents.recentApps(context, launchable, 4)
                 .ifEmpty { Settings.recents(context) }
         }
+        recents = recent
+        appMap = AppRepository.infoFor(context, AppRepository.neededPackages(items, recent))
     }
 
     val onLaunch: (String) -> Unit = { pkg ->

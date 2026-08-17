@@ -4,6 +4,9 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.drawable.Drawable
+import com.personal.sidebar.Settings
+import com.personal.sidebar.model.SidebarItem
+import java.util.concurrent.ConcurrentHashMap
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -26,12 +29,24 @@ object AppRepository {
     private val mutex = Mutex()
     @Volatile private var cache: List<AppInfo>? = null
 
+    // Panel-side caches. The panel only shows a small curated subset, so it
+    // resolves icons/labels for just those packages instead of enumerating the
+    // whole drawer (an icon decode per installed app — the old multi-second
+    // stall). [infoCache] holds resolved AppInfo per package; [launchableCache]
+    // is the cheap set of launchable package names used to filter recents.
+    private val infoCache = ConcurrentHashMap<String, AppInfo>()
+    @Volatile private var launchableCache: Set<String>? = null
+
     suspend fun load(context: Context, refresh: Boolean = false): List<AppInfo> {
         cache?.let { if (!refresh) return it }
         return mutex.withLock {
             cache?.let { if (!refresh) return it }
             val apps = withContext(Dispatchers.IO) { query(context.applicationContext) }
             cache = apps
+            // Share the full result with the panel-side caches so a Settings
+            // load also warms the panel.
+            launchableCache = apps.mapTo(LinkedHashSet()) { it.packageName }
+            apps.forEach { infoCache[it.packageName] = it }
             apps
         }
     }
@@ -40,7 +55,93 @@ object AppRepository {
     suspend fun map(context: Context, refresh: Boolean = false): Map<String, AppInfo> =
         load(context, refresh).associateBy { it.packageName }
 
-    fun invalidate() { cache = null }
+    /**
+     * The set of launchable package names — cheap (no icon/label decode). Used to
+     * filter recents to installed, launchable apps without loading the drawer.
+     */
+    suspend fun launchablePackages(context: Context): Set<String> {
+        launchableCache?.let { return it }
+        return withContext(Dispatchers.IO) {
+            val ctx = context.applicationContext
+            val pm = ctx.packageManager
+            val self = ctx.packageName
+            val set = LinkedHashSet<String>()
+            val intent = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER)
+            for (ri in pm.queryIntentActivities(intent, 0)) {
+                val pkg = ri.activityInfo?.packageName ?: continue
+                if (pkg != self) set.add(pkg)
+            }
+            runCatching {
+                for (info in pm.getInstalledApplications(0)) {
+                    val pkg = info.packageName
+                    if (pkg == self || pkg in set) continue
+                    if (pm.getLaunchIntentForPackage(pkg) != null) set.add(pkg)
+                }
+            }
+            set.also { launchableCache = it }
+        }
+    }
+
+    /**
+     * Resolves icon + label for only [packages], caching each. Unresolvable
+     * packages (uninstalled, no launcher entry) are simply omitted. This is what
+     * the panel calls — a handful of curated apps rather than the whole drawer.
+     */
+    suspend fun infoFor(context: Context, packages: Collection<String>): Map<String, AppInfo> {
+        if (packages.isEmpty()) return emptyMap()
+        return withContext(Dispatchers.IO) {
+            val pm = context.applicationContext.packageManager
+            val result = LinkedHashMap<String, AppInfo>()
+            for (pkg in packages) {
+                if (pkg in result) continue
+                val info = infoCache[pkg] ?: loadOne(pm, pkg)?.also { infoCache[pkg] = it }
+                if (info != null) result[pkg] = info
+            }
+            result
+        }
+    }
+
+    /**
+     * Pre-resolves everything the panel will show for [items] (curated packages +
+     * recents) so the panel opens against a warm cache instead of a spinner.
+     * Safe to call repeatedly — cached entries are no-ops.
+     */
+    suspend fun warm(context: Context, items: List<SidebarItem>) {
+        val launchable = launchablePackages(context)
+        val recent = withContext(Dispatchers.IO) {
+            Recents.recentApps(context, launchable, 4).ifEmpty { Settings.recents(context) }
+        }
+        infoFor(context, neededPackages(items, recent))
+    }
+
+    /** Packages the panel resolves icons for: curated apps + folder/group members + recents. */
+    fun neededPackages(items: List<SidebarItem>, recents: List<String>): Set<String> = buildSet {
+        for (item in items) {
+            item.packageName?.let { add(it) }
+            addAll(item.packages)
+        }
+        addAll(recents)
+    }
+
+    private fun loadOne(pm: PackageManager, pkg: String): AppInfo? {
+        val launch = pm.getLaunchIntentForPackage(pkg) ?: return null
+        val cmp = launch.component
+        return runCatching {
+            val activity = cmp?.let { pm.getActivityInfo(it, 0) }
+            if (activity != null) {
+                AppInfo(activity.loadLabel(pm).toString(), pkg, activity.loadIcon(pm))
+            } else {
+                val app = pm.getApplicationInfo(pkg, 0)
+                AppInfo(app.loadLabel(pm).toString(), pkg, app.loadIcon(pm))
+            }
+        }.getOrNull()
+    }
+
+    fun invalidate() {
+        cache = null
+        launchableCache = null
+        infoCache.clear()
+    }
 
     private fun query(context: Context): List<AppInfo> {
         val pm = context.packageManager

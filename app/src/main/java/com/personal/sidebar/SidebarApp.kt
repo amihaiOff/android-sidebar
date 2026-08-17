@@ -8,8 +8,15 @@ import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import com.personal.sidebar.apps.AppRepository
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
 
 class SidebarApp : Application() {
+
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+
     override fun onCreate() {
         super.onCreate()
         val channel = NotificationChannel(
@@ -26,7 +33,15 @@ class SidebarApp : Application() {
         // updated, so the picker and the panel pick up the change automatically.
         val receiver = object : BroadcastReceiver() {
             override fun onReceive(context: Context?, intent: Intent?) {
-                if (intent?.data?.schemeSpecificPart != packageName) AppRepository.invalidate()
+                if (intent?.data?.schemeSpecificPart == packageName) return
+                AppRepository.invalidate()
+                // Re-warm the panel's icons in the background so the next open
+                // stays instant instead of falling back to the loading spinner.
+                if (Settings.enabled(this@SidebarApp)) {
+                    scope.launch {
+                        runCatching { AppRepository.warm(applicationContext, Settings.config(this@SidebarApp).items) }
+                    }
+                }
             }
         }
         val filter = IntentFilter().apply {
