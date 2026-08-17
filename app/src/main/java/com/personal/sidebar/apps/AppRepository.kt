@@ -102,6 +102,19 @@ object AppRepository {
     }
 
     /**
+     * Synchronous, non-blocking read of already-resolved icons for [packages]
+     * from the in-memory cache (no IO). Lets the panel render a complete first
+     * frame off a warm cache — no loading spinner, no content swap/jump. Missing
+     * packages are simply omitted; the async [infoFor] fills any gaps.
+     */
+    fun cachedInfoFor(packages: Collection<String>): Map<String, AppInfo> {
+        if (packages.isEmpty()) return emptyMap()
+        val result = LinkedHashMap<String, AppInfo>()
+        for (pkg in packages) infoCache[pkg]?.let { result[pkg] = it }
+        return result
+    }
+
+    /**
      * Pre-resolves everything the panel will show for [items] (curated packages +
      * recents) so the panel opens against a warm cache instead of a spinner.
      * Safe to call repeatedly — cached entries are no-ops.

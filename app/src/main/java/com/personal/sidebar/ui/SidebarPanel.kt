@@ -438,17 +438,20 @@ fun SidebarPanel(
         if (transition.isIdle && !transition.currentState) onDismissed()
     }
 
-    var appMap by remember { mutableStateOf<Map<String, AppInfo>?>(null) }
-    var recents by remember { mutableStateOf<List<String>>(emptyList()) }
-    // Resolve icons/labels for ONLY what the panel shows — the curated items plus
-    // recents — instead of enumerating the whole drawer (an icon decode per
-    // installed app, which caused the multi-second spinner). Recents are filtered
-    // against the cheap set of launchable package names (no icon decode). This
-    // hits a warm cache when the service pre-warmed it, so the panel opens instantly.
+    // Seed from the warm in-memory cache SYNCHRONOUSLY so the very first frame
+    // already has content — no null/spinner state to flash and no content swap
+    // (which looked like an empty panel jumping to the real one). Recents seed
+    // from the fast SharedPreferences list; both are refined async below.
+    val seedRecents = remember { Settings.recents(context) }
+    var recents by remember { mutableStateOf(seedRecents) }
+    var appMap by remember {
+        mutableStateOf(
+            AppRepository.cachedInfoFor(AppRepository.neededPackages(items, seedRecents)).takeIf { it.isNotEmpty() }
+        )
+    }
+    // Refine: usage-based recents (if granted) + resolve any not-yet-cached icons.
     LaunchedEffect(Unit) {
         val launchable = AppRepository.launchablePackages(context)
-        // Phone-wide recents when Usage access is granted; otherwise the apps
-        // most recently launched from the sidebar itself.
         val recent = withContext(kotlinx.coroutines.Dispatchers.IO) {
             com.personal.sidebar.apps.Recents.recentApps(context, launchable, 4)
                 .ifEmpty { Settings.recents(context) }
