@@ -65,8 +65,15 @@ class SidebarService : Service() {
     }
 
     private fun warm() {
-        val items = Settings.config(this).items
-        scope.launch { runCatching { AppRepository.warm(applicationContext, items) } }
+        scope.launch {
+            runCatching {
+                // Reconcile the config against installed apps first — prunes
+                // anything uninstalled while the process was dead (no broadcast).
+                val installed = AppRepository.launchablePackages(applicationContext)
+                Settings.pruneMissing(applicationContext, installed)
+                AppRepository.warm(applicationContext, Settings.config(applicationContext).items)
+            }
+        }
     }
 
     override fun onBind(intent: Intent?): IBinder? = null

@@ -1,6 +1,7 @@
 package com.personal.sidebar
 
 import android.content.Context
+import com.personal.sidebar.model.ItemType
 import com.personal.sidebar.model.SidebarConfig
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.encodeToString
@@ -50,6 +51,36 @@ object Settings {
 
     fun setConfig(context: Context, config: SidebarConfig) {
         prefs(context).edit().putString(KEY_CONFIG, json.encodeToString(config)).apply()
+    }
+
+    /**
+     * Removes any package no longer in [installed] from the config: loose app
+     * tiles, and folder/group memberships. A folder/group left with no apps and
+     * no links is dropped. Links and installed apps are untouched. Returns true
+     * if anything changed. [installed] must be the real launchable set — callers
+     * must not pass an empty set (a failed query) or everything would be pruned.
+     */
+    fun pruneMissing(context: Context, installed: Set<String>): Boolean {
+        if (installed.isEmpty()) return false
+        val cfg = config(context)
+        val newItems = cfg.items.mapNotNull { item ->
+            when (item.type) {
+                ItemType.APP -> if (item.packageName != null && item.packageName !in installed) null else item
+                ItemType.FOLDER, ItemType.GROUP -> {
+                    val pkgs = item.packages.filter { it in installed }
+                    when {
+                        pkgs.size == item.packages.size -> item
+                        pkgs.isEmpty() && item.links.isEmpty() -> null
+                        else -> item.copy(packages = pkgs)
+                    }
+                }
+                else -> item
+            }
+        }
+        return if (newItems != cfg.items) {
+            setConfig(context, cfg.copy(items = newItems))
+            true
+        } else false
     }
 
     /** Recently launched packages, most-recent first. */

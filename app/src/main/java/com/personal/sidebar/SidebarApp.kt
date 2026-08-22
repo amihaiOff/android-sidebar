@@ -33,13 +33,23 @@ class SidebarApp : Application() {
         // updated, so the picker and the panel pick up the change automatically.
         val receiver = object : BroadcastReceiver() {
             override fun onReceive(context: Context?, intent: Intent?) {
-                if (intent?.data?.schemeSpecificPart == packageName) return
+                val pkg = intent?.data?.schemeSpecificPart
+                if (pkg == packageName) return
                 AppRepository.invalidate()
-                // Re-warm the panel's icons in the background so the next open
-                // stays instant instead of falling back to the loading spinner.
-                if (Settings.enabled(this@SidebarApp)) {
-                    scope.launch {
-                        runCatching { AppRepository.warm(applicationContext, Settings.config(this@SidebarApp).items) }
+                val app = this@SidebarApp
+                // A genuine uninstall (not the remove half of an app UPDATE, which
+                // carries EXTRA_REPLACING) — prune the package from the config.
+                val uninstalled = intent?.action == Intent.ACTION_PACKAGE_REMOVED &&
+                    !intent.getBooleanExtra(Intent.EXTRA_REPLACING, false)
+                scope.launch {
+                    // Prune the uninstalled app (invalidate() cleared the cache, so
+                    // launchablePackages re-queries the post-uninstall set).
+                    if (uninstalled) {
+                        runCatching { Settings.pruneMissing(app, AppRepository.launchablePackages(app)) }
+                    }
+                    // Re-warm the panel's icons so the next open stays instant.
+                    if (Settings.enabled(app)) {
+                        runCatching { AppRepository.warm(app, Settings.config(app).items) }
                     }
                 }
             }
