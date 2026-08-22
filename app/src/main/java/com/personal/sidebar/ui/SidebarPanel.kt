@@ -966,8 +966,12 @@ private fun AppGrid(
     onOpenLink: (String, String?) -> Unit = { _, _ -> },
     tileAlign: Alignment.Horizontal = Alignment.CenterHorizontally,
 ) {
+    // Drop items that won't render (an uninstalled app has no appMap entry), so
+    // the remaining tiles flow up to fill the gap instead of leaving a hole. The
+    // package stays in the saved config, so reinstalling the app brings it back.
+    val visible = items.filter { it.type == ItemType.LINK || (it.packageName?.let(appMap::containsKey) == true) }
     Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        items.chunked(cols).forEach { rowItems ->
+        visible.chunked(cols).forEach { rowItems ->
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(2.dp)) {
                 rowItems.forEach { item ->
                     Box(Modifier.weight(1f)) {
