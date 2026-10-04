@@ -15,6 +15,10 @@
     <!-- Show the low-priority ongoing notification on Android 13+. -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
+    <!-- Lets the "Ignore battery optimization" button show the system allow-dialog.
+         Without it the request screen closes instantly (e.g. on Samsung One UI). -->
+    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
+
     <!-- Device-wide recent apps (special "Usage access" grant). -->
     <uses-permission android:name="android.permission.PACKAGE_USAGE_STATS"
         tools:ignore="ProtectedPermissions" />

@@ -278,7 +278,7 @@ private fun HomeScreen(
             }
         }
         PermissionCard("Ignore battery optimization", "Recommended. Stops OEMs killing the handle.", batteryExempt) {
-            if (!batteryExempt) OutlinedButton(onClick = { context.startActivity(Permissions.batteryOptimizationIntent(context)) }) { Text("Open") }
+            if (!batteryExempt) OutlinedButton(onClick = { Permissions.requestIgnoreBatteryOptimizations(context) }) { Text("Open") }
         }
         PermissionCard("Usage access", "Optional. Shows your phone-wide recent apps in the panel.", usageGranted) {
             if (!usageGranted) OutlinedButton(onClick = { context.startActivity(Permissions.usageAccessIntent()) }) { Text("Open") }
