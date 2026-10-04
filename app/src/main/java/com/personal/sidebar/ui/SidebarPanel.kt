@@ -569,7 +569,10 @@ private fun PanelCard(
         } else IconStyle(false, 0, 0)
     }
 
-    androidx.compose.runtime.CompositionLocalProvider(LocalIconStyle provides iconStyle) {
+    androidx.compose.runtime.CompositionLocalProvider(
+        LocalIconStyle provides iconStyle,
+        LocalIconSize provides panel.iconDp.coerceIn(28, 64).dp,
+    ) {
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -788,7 +791,8 @@ private fun PanelContent(
                 modifier = Modifier
                     .fillMaxWidth()
                     .alpha(dim)
-                    .drawBehind { drawGroupDropShadow(groupStyle.cornerDp.dp.toPx(), groupStyle.shadowDp) },
+                    .drawBehind { drawGroupDropShadow(groupStyle.cornerDp.dp.toPx(), groupStyle.shadowDp) }
+                    .then(groupOutline(groupStyle.borderDp, groupStyle.borderBrightness, shape)),
                 shape = shape,
                 color = Color.Transparent,
                 shadowElevation = 0.dp,
@@ -1002,7 +1006,7 @@ private fun Tile(label: String, showLabel: Boolean, align: Alignment.Horizontal 
             .padding(vertical = 8.dp, horizontal = 2.dp),
         horizontalAlignment = align,
     ) {
-        Box(Modifier.size(50.dp), contentAlignment = Alignment.Center) { icon() }
+        Box(Modifier.size(LocalIconSize.current), contentAlignment = Alignment.Center) { icon() }
         if (showLabel) {
             Text(
                 text = label,
@@ -1026,7 +1030,7 @@ private fun AppTile(app: AppInfo, showLabel: Boolean = true, align: Alignment.Ho
             ?: app.icon.toBitmap(144, 144).asImageBitmap()
     }
     Tile(app.label, showLabel, align, onClick) {
-        Image(bitmap = bitmap, contentDescription = app.label, modifier = Modifier.size(50.dp).clip(RoundedCornerShape(12.dp)))
+        Image(bitmap = bitmap, contentDescription = app.label, modifier = Modifier.size(LocalIconSize.current).clip(iconShape()))
     }
 }
 
@@ -1041,18 +1045,35 @@ private fun LinkTile(label: String, emoji: String?, showLabel: Boolean, align: A
                 val bmp = remember(emoji, style.themed, style.fg, style.bg) {
                     themedEmojiBitmap(emoji, 144, style.fg, style.bg).asImageBitmap()
                 }
-                Image(bitmap = bmp, contentDescription = label, modifier = Modifier.size(50.dp).clip(RoundedCornerShape(12.dp)))
+                Image(bitmap = bmp, contentDescription = label, modifier = Modifier.size(LocalIconSize.current).clip(iconShape()))
             }
-            !emoji.isNullOrBlank() -> Text(emoji, fontSize = 30.sp)
+            !emoji.isNullOrBlank() -> Text(emoji, fontSize = (LocalIconSize.current.value * 0.6f).sp)
             else -> Box(
-                Modifier.size(50.dp).clip(RoundedCornerShape(12.dp)).background(Color.White.copy(alpha = 0.15f)),
+                Modifier.size(LocalIconSize.current).clip(iconShape()).background(Color.White.copy(alpha = 0.15f)),
                 contentAlignment = Alignment.Center,
             ) {
-                Icon(Icons.Filled.Language, contentDescription = label, tint = LabelPrimary, modifier = Modifier.size(28.dp))
+                Icon(Icons.Filled.Language, contentDescription = label, tint = LabelPrimary, modifier = Modifier.size(LocalIconSize.current * 0.56f))
             }
         }
     }
 }
+
+/** App/link icon size, from [PanelConfig.iconDp]. */
+private val LocalIconSize = androidx.compose.runtime.staticCompositionLocalOf { 50.dp }
+
+/** Icon corner rounding, proportional to the icon size (12dp at 50dp). */
+@Composable
+private fun iconShape() = RoundedCornerShape(LocalIconSize.current * 0.24f)
+
+/**
+ * A dark hairline just outside a group's white border, so the frame reads on a
+ * light (software-frosted) panel as well as a dark one.
+ */
+internal fun groupOutline(borderDp: Float, alpha: Float, shape: androidx.compose.ui.graphics.Shape): Modifier =
+    if (borderDp <= 0f) Modifier
+    else Modifier
+        .border(borderDp.dp, Color.Black.copy(alpha = (alpha * 0.6f).coerceIn(0f, 1f)), shape)
+        .padding(borderDp.dp)
 
 /** Stable identity for a folder's expand/collapse state. */
 private fun SidebarItem.key(): String = when (type) {

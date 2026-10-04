@@ -1,6 +1,7 @@
 package com.personal.sidebar.model
 
 import com.personal.sidebar.Edge
+import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
 /**
@@ -79,8 +80,12 @@ data class PanelConfig(
     val edgeDp: Float = 1f,
     /** Corner radius (dp) of the panel's inner edge. */
     val cornerDp: Int = 28,
-    /** Show app/link names under their icons in the panel. */
-    val showLabels: Boolean = true,
+    /** Show app/link names under their icons in the panel. (New key so existing
+     *  installs pick up the new default of off.) */
+    @SerialName("labels")
+    val showLabels: Boolean = false,
+    /** App/link icon size in the panel, in dp. */
+    val iconDp: Int = 42,
     /** Recolor app icons to match the system theme (Android 13+ themed icons). */
     val themedIcons: Boolean = false,
     /** Look used instead of [blurDp] on devices without hardware blur (e.g. Samsung). */
@@ -134,8 +139,10 @@ data class FolderConfig(
 data class GroupConfig(
     /** Border stroke width in dp; 0 = none. */
     val borderDp: Float = 1f,
-    /** Border visibility: a white stroke at this opacity (0 = invisible, 1 = bright). */
-    val borderBrightness: Float = 0.12f,
+    /** Border visibility: a white stroke with a dark outline, at this opacity
+     *  (0 = invisible, 1 = bright). New key so existing installs get the bolder default. */
+    @SerialName("borderAlpha")
+    val borderBrightness: Float = 0.35f,
     /** Drop-shadow elevation in dp; 0 = flat. */
     val shadowDp: Float = 0f,
     /** Inner shadow depth in dp; makes the group look sunken into the panel. 0 = flat. */

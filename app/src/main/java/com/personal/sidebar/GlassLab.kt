@@ -54,6 +54,7 @@ import com.personal.sidebar.model.GroupConfig
 import com.personal.sidebar.model.PanelConfig
 import com.personal.sidebar.model.SoftFrostConfig
 import com.personal.sidebar.ui.SoftFrostLayers
+import com.personal.sidebar.ui.groupOutline
 import com.personal.sidebar.ui.rememberHardwareBlurAvailable
 import com.personal.sidebar.ui.drawFolderShadow
 import com.personal.sidebar.ui.drawTwoToneFolder
@@ -120,6 +121,7 @@ internal fun GlassLabScreen(
         LabSlider("Brightness", p.brightness, 0f..1f, "${(p.brightness * 100).roundToInt()}%") { setP(p.copy(brightness = it)) }
         LabSlider("Edge stroke", p.edgeDp, 0f..4f, "${p.edgeDp.roundToInt()} dp") { setP(p.copy(edgeDp = it)) }
         LabSlider("Corner radius", p.cornerDp.toFloat(), 0f..48f, "${p.cornerDp} dp") { setP(p.copy(cornerDp = it.roundToInt())) }
+        LabSlider("Icon size", p.iconDp.toFloat(), 28f..64f, "${p.iconDp} dp") { setP(p.copy(iconDp = it.roundToInt())) }
         ToggleRow("Show app names", p.showLabels) { setP(p.copy(showLabels = it)) }
         ToggleRow("Themed icons (recolour all)", p.themedIcons) { setP(p.copy(themedIcons = it)) }
         Text("Background", style = MaterialTheme.typography.labelLarge, modifier = Modifier.padding(top = 8.dp))
@@ -248,13 +250,14 @@ private fun GlassPreview(p: PanelConfig, f: FolderConfig, g: GroupConfig, hardwa
                 Spacer(Modifier.height(8.dp))
                 // Loose apps row.
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    repeat(4) { AppPlaceholder(showLabel = p.showLabels) }
+                    repeat(4) { AppPlaceholder(showLabel = p.showLabels, iconDp = p.iconDp) }
                 }
                 // A titled group frame.
                 Surface(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .drawBehind { drawGroupDropShadow(g.cornerDp.dp.toPx(), g.shadowDp) },
+                        .drawBehind { drawGroupDropShadow(g.cornerDp.dp.toPx(), g.shadowDp) }
+                        .then(groupOutline(g.borderDp, g.borderBrightness, RoundedCornerShape(g.cornerDp.dp))),
                     shape = RoundedCornerShape(g.cornerDp.dp),
                     color = Color.Transparent,
                     shadowElevation = 0.dp,
@@ -275,7 +278,7 @@ private fun GlassPreview(p: PanelConfig, f: FolderConfig, g: GroupConfig, hardwa
                             }
                             Spacer(Modifier.height(8.dp))
                             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                                repeat(4) { AppPlaceholder(showLabel = p.showLabels) }
+                                repeat(4) { AppPlaceholder(showLabel = p.showLabels, iconDp = p.iconDp) }
                             }
                         }
                         if (g.insetDp > 0f) {
@@ -345,11 +348,12 @@ private fun DrawScope.drawScene(origin: Offset, wpx: Float, hpx: Float) {
 }
 
 @Composable
-private fun AppPlaceholder(showLabel: Boolean = true) {
+private fun AppPlaceholder(showLabel: Boolean = true, iconDp: Int = 50) {
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        // The preview is drawn at 60% scale of the real panel.
         Box(
             Modifier
-                .size(30.dp)
+                .size((iconDp * 0.6f).dp)
                 .clip(RoundedCornerShape(8.dp))
                 .background(Color.White.copy(alpha = 0.3f))
         )
