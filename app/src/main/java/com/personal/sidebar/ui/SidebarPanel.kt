@@ -552,13 +552,10 @@ private fun PanelCard(
     val systemPadding = WindowInsets.safeDrawing.asPaddingValues()
 
     // Is hardware cross-window blur actually available? The real frost is a
-    // system blur that the OS turns off in battery saver / on some GPUs; when
-    // it's off we simulate a milky frost so the Frost slider still does something.
+    // system blur that the OS turns off in battery saver, and some OEMs (Samsung)
+    // never enable for third-party apps; when it's off we draw a software frost.
     val context = LocalContext.current
-    val blurAvailable = remember {
-        android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S &&
-            (context.getSystemService(android.content.Context.WINDOW_SERVICE) as android.view.WindowManager).isCrossWindowBlurEnabled
-    }
+    val blurAvailable = rememberHardwareBlurAvailable()
 
     // Themed-icon colours from the system palette (Android 12+/13+), matching
     // the OS themed-icons look: a light accent glyph on a muted accent tile.
@@ -588,13 +585,15 @@ private fun PanelCard(
         Box(
             Modifier
                 .matchParentSize()
-                .background(panelColor(panel.brightness).copy(alpha = panel.opacity.coerceIn(0.12f, 1f)))
+                .background(
+                    panelColor(panel.brightness).copy(
+                        alpha = (panel.opacity + if (blurAvailable) 0f else panel.soft.mute).coerceIn(0.12f, 1f)
+                    )
+                )
         )
-        // Software frost fallback: only when hardware blur is unavailable, add a
-        // milky white veil scaled by the Frost slider so it still reads as frost.
-        if (!blurAvailable && panel.blurDp > 0) {
-            val frost = (panel.blurDp / 80f).coerceIn(0f, 1f) * 0.16f
-            Box(Modifier.matchParentSize().background(Color.White.copy(alpha = frost)))
+        // Software frost: only when hardware blur is unavailable.
+        if (!blurAvailable) {
+            SoftFrostLayers(panel.soft, Modifier.matchParentSize())
         }
         // Glass edge — thin white stroke catching the light.
         if (panel.edgeDp > 0f) {

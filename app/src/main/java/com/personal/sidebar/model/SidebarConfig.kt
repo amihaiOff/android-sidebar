@@ -83,6 +83,28 @@ data class PanelConfig(
     val showLabels: Boolean = true,
     /** Recolor app icons to match the system theme (Android 13+ themed icons). */
     val themedIcons: Boolean = false,
+    /** Look used instead of [blurDp] on devices without hardware blur (e.g. Samsung). */
+    val soft: SoftFrostConfig = SoftFrostConfig(),
+)
+
+/**
+ * Software "frosted glass" for devices where the system blur is unavailable.
+ * Every value is an opacity, 0 = off.
+ */
+@Serializable
+data class SoftFrostConfig(
+    /** Extra panel opacity added on top of the tint, to mute sharp content behind. */
+    val mute: Float = 0.15f,
+    /** Milky white haze. */
+    val haze: Float = 0.08f,
+    /** Wallpaper-colour tint, so the panel picks up the colour behind it. */
+    val wallpaperTint: Float = 0.3f,
+    /** Top-to-bottom light sheen. */
+    val sheen: Float = 0.1f,
+    /** Soft inner glow along the edges. */
+    val glow: Float = 0.1f,
+    /** Fine grain texture. */
+    val grain: Float = 0.06f,
 )
 
 /** Appearance of a folder card (a "nested glass" layer inside the panel). */

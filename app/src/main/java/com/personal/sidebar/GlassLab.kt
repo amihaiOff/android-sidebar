@@ -45,7 +45,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInParent
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -53,6 +52,9 @@ import androidx.compose.ui.unit.sp
 import com.personal.sidebar.model.FolderConfig
 import com.personal.sidebar.model.GroupConfig
 import com.personal.sidebar.model.PanelConfig
+import com.personal.sidebar.model.SoftFrostConfig
+import com.personal.sidebar.ui.SoftFrostLayers
+import com.personal.sidebar.ui.rememberHardwareBlurAvailable
 import com.personal.sidebar.ui.drawFolderShadow
 import com.personal.sidebar.ui.drawTwoToneFolder
 import com.personal.sidebar.ui.drawGroupDropShadow
@@ -87,11 +89,7 @@ internal fun GlassLabScreen(
     onChange: (PanelConfig, FolderConfig, GroupConfig) -> Unit,
     onBack: () -> Unit,
 ) {
-    val context = LocalContext.current
-    val blurAvailable = remember {
-        android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S &&
-            (context.getSystemService(android.content.Context.WINDOW_SERVICE) as android.view.WindowManager).isCrossWindowBlurEnabled
-    }
+    val blurAvailable = rememberHardwareBlurAvailable()
     var p by remember { mutableStateOf(panel) }
     var f by remember { mutableStateOf(folder) }
     var g by remember { mutableStateOf(group) }
@@ -108,26 +106,15 @@ internal fun GlassLabScreen(
             Text("Panel & glass", style = MaterialTheme.typography.titleLarge)
         }
         Spacer(Modifier.height(8.dp))
-        GlassPreview(p, f, g)
+        GlassPreview(p, f, g, blurAvailable)
         Spacer(Modifier.height(12.dp))
 
         // Scrolling controls below the pinned preview.
         Column(Modifier.weight(1f).verticalScroll(rememberScrollState())) {
         SectionLabel("Panel")
-        LabSlider("Frost (blur)", p.blurDp.toFloat(), 0f..80f, "${p.blurDp} dp") { setP(p.copy(blurDp = it.toInt())) }
-        if (!blurAvailable) {
-            Row(
-                Modifier.fillMaxWidth().padding(top = 2.dp, bottom = 4.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(6.dp),
-            ) {
-                Icon(Icons.Outlined.Info, contentDescription = null, tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(16.dp))
-                Text(
-                    "Hardware blur is off (usually battery saver) — showing a software frost. Turn off battery saver for the real glass blur.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.error,
-                )
-            }
+        FrostModeNote(blurAvailable)
+        if (blurAvailable) {
+            LabSlider("Frost (blur)", p.blurDp.toFloat(), 0f..80f, "${p.blurDp} dp") { setP(p.copy(blurDp = it.toInt())) }
         }
         LabSlider("Tint opacity", p.opacity, 0.1f..1f, "${(p.opacity * 100).roundToInt()}%") { setP(p.copy(opacity = it)) }
         LabSlider("Brightness", p.brightness, 0f..1f, "${(p.brightness * 100).roundToInt()}%") { setP(p.copy(brightness = it)) }
@@ -146,6 +133,25 @@ internal fun GlassLabScreen(
             }
         }
         LabSlider("Background dim", p.scrimAlpha, 0f..0.85f, "${(p.scrimAlpha * 100).roundToInt()}%") { setP(p.copy(scrimAlpha = it)) }
+
+        if (!blurAvailable) {
+            val sf = p.soft
+            fun setS(ns: SoftFrostConfig) = setP(p.copy(soft = ns))
+            fun pct(v: Float) = "${(v * 100).roundToInt()}%"
+            SectionLabel("Software frost")
+            Text(
+                "Fakes frosted glass with its visual cues, since this phone won't blur what's behind the panel.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(bottom = 2.dp),
+            )
+            LabSlider("Mute background", sf.mute, 0f..0.6f, pct(sf.mute)) { setS(sf.copy(mute = it)) }
+            LabSlider("Haze", sf.haze, 0f..0.4f, pct(sf.haze)) { setS(sf.copy(haze = it)) }
+            LabSlider("Wallpaper tint", sf.wallpaperTint, 0f..1f, pct(sf.wallpaperTint)) { setS(sf.copy(wallpaperTint = it)) }
+            LabSlider("Light sheen", sf.sheen, 0f..0.4f, pct(sf.sheen)) { setS(sf.copy(sheen = it)) }
+            LabSlider("Edge glow", sf.glow, 0f..0.4f, pct(sf.glow)) { setS(sf.copy(glow = it)) }
+            LabSlider("Grain", sf.grain, 0f..0.3f, pct(sf.grain)) { setS(sf.copy(grain = it)) }
+        }
 
         SectionLabel("Folder")
         Text(
@@ -186,7 +192,7 @@ internal fun GlassLabScreen(
 }
 
 @Composable
-private fun GlassPreview(p: PanelConfig, f: FolderConfig, g: GroupConfig) {
+private fun GlassPreview(p: PanelConfig, f: FolderConfig, g: GroupConfig, hardwareBlur: Boolean) {
     BoxWithConstraints(
         Modifier
             .fillMaxWidth()
@@ -197,7 +203,8 @@ private fun GlassPreview(p: PanelConfig, f: FolderConfig, g: GroupConfig) {
         val boxWpx = with(density) { maxWidth.toPx() }
         val boxHpx = with(density) { maxHeight.toPx() }
         val shape = RoundedCornerShape(topStart = p.cornerDp.dp, bottomStart = p.cornerDp.dp)
-        val previewBlur = minOf(p.blurDp, 40)
+        // Software frost doesn't blur the backdrop, so neither does its preview.
+        val previewBlur = if (hardwareBlur) minOf(p.blurDp, 40) else 0
 
         // Muted "wallpaper" behind the panel. Stays sharp outside the panel —
         // the blur is confined to the panel region, exactly like the real overlay.
@@ -222,7 +229,9 @@ private fun GlassPreview(p: PanelConfig, f: FolderConfig, g: GroupConfig) {
             )
             // Background scrim, then the translucent panel tint.
             Box(Modifier.matchParentSize().background(Color(p.scrimColor).copy(alpha = p.scrimAlpha.coerceIn(0f, 1f))))
-            Box(Modifier.matchParentSize().background(labTint(p.brightness).copy(alpha = p.opacity.coerceIn(0.1f, 1f))))
+            val tintAlpha = p.opacity + if (hardwareBlur) 0f else p.soft.mute
+            Box(Modifier.matchParentSize().background(labTint(p.brightness).copy(alpha = tintAlpha.coerceIn(0.1f, 1f))))
+            if (!hardwareBlur) SoftFrostLayers(p.soft, Modifier.matchParentSize())
 
             Column(
                 Modifier.fillMaxSize().padding(12.dp),
@@ -353,6 +362,27 @@ private fun AppPlaceholder(showLabel: Boolean = true) {
                     .background(Color.White.copy(alpha = 0.45f))
             )
         }
+    }
+}
+
+/** States which glass mode this device gets, so it's clear which controls apply. */
+@Composable
+private fun FrostModeNote(hardwareBlur: Boolean) {
+    Row(
+        Modifier.fillMaxWidth().padding(bottom = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        Icon(Icons.Outlined.Info, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(16.dp))
+        Text(
+            if (hardwareBlur) {
+                "Hardware blur: the system frosts whatever is behind the panel."
+            } else {
+                "Software frost: this phone doesn't offer hardware blur to apps (Samsung, or battery saver is on). Tune it under Software frost below."
+            },
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
     }
 }
 
