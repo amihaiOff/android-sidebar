@@ -61,8 +61,9 @@ object Settings {
     /**
      * Removes any package no longer in [installed] from the config: loose app
      * tiles, and folder/group memberships. A folder/group left with no apps and
-     * no links is dropped; rail groups are kept (an empty one is a drop target).
-     * Links and installed apps are untouched. Returns true
+     * no links is dropped. Links and installed apps are untouched. Rail groups
+     * aren't pruned: the rail just skips apps that aren't installed, so a
+     * starter app installed later (or a reinstall) shows up again. Returns true
      * if anything changed. [installed] must be the real launchable set — callers
      * must not pass an empty set (a failed query) or everything would be pruned.
      */
@@ -83,11 +84,8 @@ object Settings {
                 else -> item
             }
         }
-        val newRailGroups = cfg.rail.groups.mapValues { (_, groups) ->
-            groups.map { g -> g.copy(packages = g.packages.filter { it in installed }) }
-        }
-        return if (newItems != cfg.items || newRailGroups != cfg.rail.groups) {
-            setConfig(context, cfg.copy(items = newItems, rail = cfg.rail.copy(groups = newRailGroups)))
+        return if (newItems != cfg.items) {
+            setConfig(context, cfg.copy(items = newItems))
             true
         } else false
     }

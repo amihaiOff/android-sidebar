@@ -65,6 +65,7 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -114,15 +115,14 @@ private fun SidebarRoot() {
         if (running && Permissions.canDrawOverlays(context)) SidebarService.start(context)
     }
 
-    // The panel can change the config too (rail group titles, last folder), so
-    // re-read it whenever we come back rather than overwriting those edits later.
-    val lifecycleOwner = LocalLifecycleOwner.current
-    DisposableEffect(lifecycleOwner) {
-        val observer = LifecycleEventObserver { _, event ->
-            if (event == Lifecycle.Event.ON_RESUME) config = Settings.config(context)
-        }
-        lifecycleOwner.lifecycle.addObserver(observer)
-        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    // The panel can change the config too (rail group titles, last folder), and
+    // it opens as an overlay that takes focus without pausing us. Re-read the
+    // config whenever the window regains focus on Home, so later edits here
+    // don't write a stale copy over the panel's. Sub-screens are left alone:
+    // they address items by index, which a reload could shift.
+    val windowFocused = LocalWindowInfo.current.isWindowFocused
+    LaunchedEffect(windowFocused, screen) {
+        if (windowFocused && screen == Screen.Home) config = Settings.config(context)
     }
 
     fun commit(new: SidebarConfig) {

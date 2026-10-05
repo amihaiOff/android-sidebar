@@ -205,7 +205,7 @@ data class RailConfig(
 }
 
 /** Starter groups from the design hand-off. Packages that aren't installed are
- *  simply not shown (and get pruned from the config). */
+ *  simply not shown until they are. */
 fun defaultRailGroups(): Map<RailFolder, List<RailGroup>> = mapOf(
     RailFolder.RECENT to listOf(RailGroup("recent-today", "Today")),
     RailFolder.MEDIA to listOf(

@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.absolutePadding
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
@@ -60,6 +61,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.AbsoluteAlignment
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -229,7 +231,12 @@ private class RailMotion(
             // Closed (or closing): pick the folder, then open.
             !drawerShown -> run {
                 if (folder != selected) { selected = folder; onSelect(folder) }
-                anchor.snapTo(anchorOf(folder))
+                // Mid-collapse the sliver is still visible: glide it over.
+                if (genie.value > GENIE_CLOSED) {
+                    anchor.animateTo(anchorOf(folder), tween(150, easing = Rail.GenieEasing))
+                } else {
+                    anchor.snapTo(anchorOf(folder))
+                }
                 expand(firstMs = 140)
             }
             // The active folder: close.
@@ -256,7 +263,7 @@ private class RailMotion(
             if (quick) {
                 enter.animateTo(0f, tween(140))
             } else {
-                if (genie.value > GENIE_CLOSED) collapse()
+                if (drawerShown || genie.value > GENIE_CLOSED) collapse()
                 enter.animateTo(0f, tween(180, easing = Rail.GenieEasing))
             }
             onDone()
@@ -295,8 +302,14 @@ fun RailPanel(
             Settings.updateConfig(context) { it.copy(rail = it.rail.copy(selected = folder)) }
         }
     }
-    val dismiss = remember { { motion.dismiss(quick = false, onDone = onDismissed) } }
-    val actions = remember { PanelActions(context) { motion.dismiss(quick = true, onDone = onDismissed) } }
+    val focusManager = LocalFocusManager.current
+    val dismiss = remember {
+        { focusManager.clearFocus(); motion.dismiss(quick = false, onDone = onDismissed) }
+    }
+    val actions = remember {
+        PanelActions(context) { focusManager.clearFocus(); motion.dismiss(quick = true, onDone = onDismissed) }
+    }
+    val onFolder: (RailFolder) -> Unit = remember { { focusManager.clearFocus(); motion.tap(it) } }
     LaunchedEffect(Unit) {
         registerDismiss(dismiss)
         motion.show()
@@ -320,13 +333,23 @@ fun RailPanel(
             current + RailGroup(id, title) // e.g. Recent's title group was never saved
         }
         groups = groups + (folder to list)
-        // Saved as you type; the next panel open reads it back.
-        Settings.updateConfig(context) { it.copy(rail = it.rail.withGroups(folder, list)) }
+        // Saved as you type: change only this title in the stored config, so a
+        // concurrent write elsewhere isn't overwritten with the panel's copy.
+        Settings.updateConfig(context) { c ->
+            val stored = c.rail.groupsOf(folder)
+            val updated = if (stored.any { it.id == id }) {
+                stored.map { if (it.id == id) it.copy(title = title) else it }
+            } else {
+                stored + RailGroup(id, title)
+            }
+            c.copy(rail = c.rail.withGroups(folder, updated))
+        }
     }
 
+    val density = LocalDensity.current
     val iconBitmaps = remember { HashMap<String, androidx.compose.ui.graphics.ImageBitmap>() }
     fun iconFor(app: AppInfo) = iconBitmaps.getOrPut(app.packageName) {
-        val px = 168
+        val px = with(density) { Rail.Tile.roundToPx() }
         if (rail.themedIcons) {
             tintedIconBitmap(app.icon, px, Rail.Accent.toArgb(), Rail.ThemedTile.toArgb()).asImageBitmap()
         } else {
@@ -341,7 +364,6 @@ fun RailPanel(
             .drawBehind { drawRect(Rail.Scrim, alpha = motion.enter.value) }
             .pointerInput(Unit) { detectTapGestures { dismiss() } },
     ) {
-        val density = LocalDensity.current
         val safe = WindowInsets.safeDrawing
         val bottom = maxOf(
             Rail.BottomInset,
@@ -373,10 +395,11 @@ fun RailPanel(
                 maxHeight = availH / scale,
                 geometry = geometry,
                 modifier = Modifier
-                    .align(if (mirror) Alignment.BottomEnd else Alignment.BottomStart)
-                    .padding(
-                        start = if (mirror) 0.dp else start / scale,
-                        end = if (mirror) start / scale else 0.dp,
+                    // Absolute: the handle's side is physical, not locale-relative.
+                    .align(if (mirror) AbsoluteAlignment.BottomRight else AbsoluteAlignment.BottomLeft)
+                    .absolutePadding(
+                        left = if (mirror) 0.dp else start / scale,
+                        right = if (mirror) start / scale else 0.dp,
                         bottom = bottom / scale,
                     )
                     // One layer for the whole group, so overlapping parts (neck
@@ -409,7 +432,7 @@ fun RailPanel(
                         drawerShown = motion.drawerShown,
                         mirror = mirror,
                         geometry = geometry,
-                        onFolder = motion::tap,
+                        onFolder = onFolder,
                         onSettings = actions::openSettings,
                     )
                 },
@@ -687,8 +710,9 @@ private fun Drawer(
                 )
                 drawOutline(shape.createOutline(size, LayoutDirection.Ltr, this), Rail.Surface)
             }
-            // Once open, taps on empty drawer space shouldn't close the sidebar.
-            .then(if (interactive) Modifier.pointerInput(Unit) { detectTapGestures { } } else Modifier)
+            // Taps on the drawer never close the sidebar; until it's fully open
+            // they're simply ignored (cells and titles are disabled).
+            .pointerInput(Unit) { detectTapGestures { } }
             .padding(start = 16.dp, end = 16.dp, top = 22.dp, bottom = 18.dp),
         verticalArrangement = Arrangement.spacedBy(18.dp),
     ) {
