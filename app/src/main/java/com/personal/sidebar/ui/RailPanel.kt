@@ -135,7 +135,6 @@ private object Rail {
     val TextTertiary = Color(0xFF7F786B)
     val Accent = Color(0xFFE8B86A)
     val ThemedTile = Color(0xFF3A3326)
-    val Scrim = Color.Black.copy(alpha = 0.5f)
 
     val RailWidth = 68.dp
     val RailRadius = 34.dp
@@ -196,7 +195,7 @@ private class RailMotion(
     private val count = RailFolder.entries.size
     val genie = Animatable(GENIE_CLOSED)
     val anchor = Animatable(Rail.anchorFromBottom(initial.ordinal, count).value)
-    /** Slide-in of the whole sidebar (scrim, rail, drawer): 0 = gone, 1 = shown. */
+    /** Slide-in of the whole sidebar (rail + drawer): 0 = gone, 1 = shown. */
     val enter = Animatable(0f)
     /** Cross-fade progress from [previous] to [selected]. */
     val swap = Animatable(1f)
@@ -318,7 +317,7 @@ private data class CellStyle(val iconSize: Dp, val showLabels: Boolean, val them
  * The [com.personal.sidebar.model.Design.RAIL] panel: a vertical rail of folder
  * buttons near the bottom of the [edge], and a drawer that grows out of the
  * selected folder with that folder's groups of apps. Covers the whole screen
- * with a scrim; tapping the scrim closes everything.
+ * (undimmed) so a tap anywhere outside closes everything.
  */
 @Composable
 fun RailPanel(
@@ -374,8 +373,8 @@ fun RailPanel(
     BoxWithConstraints(
         Modifier
             .fillMaxSize()
-            // Scrim: taps that no rail/drawer element consumed close the sidebar.
-            .drawBehind { drawRect(Rail.Scrim, alpha = motion.enter.value) }
+            // No dimming: the screen behind stays as it is. Taps outside the
+            // rail/drawer (not consumed by them) still close the sidebar.
             .pointerInput(Unit) { detectTapGestures { dismiss() } },
     ) {
         val safe = WindowInsets.safeDrawing
@@ -604,7 +603,7 @@ private fun FolderRail(
                     }
                 }
             }
-            // Taps on the rail's empty space shouldn't fall through to the scrim.
+            // Taps on the rail's empty space shouldn't close the sidebar.
             .pointerInput(Unit) { detectTapGestures { } }
             .padding(vertical = Rail.RailPadding),
         horizontalAlignment = Alignment.CenterHorizontally,

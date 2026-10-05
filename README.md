@@ -45,7 +45,8 @@ match.
   and the contents cross-fade. Settings: overall opacity (40–100%), icon size,
   app names on/off, and themed (warm monochrome) icons — off by default, which
   shows the system's own icons, including a Galaxy Themes / Theme Park icon
-  pack. The scrim, back or an app launch closes it.
+  pack. The screen behind isn't dimmed; tapping outside, back or an app launch
+  closes it.
 
 The edge handle (side, colour, size, position) is shared by both designs.
 

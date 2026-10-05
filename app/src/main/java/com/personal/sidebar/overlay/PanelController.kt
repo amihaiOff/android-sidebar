@@ -69,8 +69,8 @@ private const val PANEL_MAX_WIDTH_DP = 340
  *   within the window's bounds — so the frost is confined to the panel. (A plain
  *   WindowManager overlay can't do this: its only blur option, FLAG_BLUR_BEHIND,
  *   blurs the entire screen behind the window.)
- * - [Design.RAIL]: a full-screen window with no blur; the panel draws its own
- *   scrim, and tapping it closes the panel.
+ * - [Design.RAIL]: a full-screen transparent window with no blur or dimming;
+ *   tapping outside the rail/drawer closes the panel.
  *
  * Nothing stays mounted while hidden — the Dialog is dismissed on close.
  */
@@ -201,9 +201,9 @@ class PanelController(private val context: Context) {
         }
     }
 
-    /** Full-screen transparent window; the rail panel draws its own scrim. */
+    /** Full-screen transparent window (no dim); outside taps close the panel. */
     private fun configureRailWindow(d: Dialog, window: Window) {
-        // The panel covers the whole window and handles scrim taps itself.
+        // The panel covers the whole window and handles outside taps itself.
         d.setCanceledOnTouchOutside(false)
         window.setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
         val lp = window.attributes
