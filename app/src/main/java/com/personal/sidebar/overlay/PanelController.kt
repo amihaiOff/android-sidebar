@@ -104,6 +104,7 @@ class PanelController(private val context: Context) {
                     Design.RAIL -> RailPanel(
                         edge = edge,
                         rail = config.rail,
+                        handle = config.handle,
                         registerDismiss = registerDismiss,
                         onDismissed = { hide() },
                     )

@@ -96,6 +96,7 @@ import com.personal.sidebar.Edge
 import com.personal.sidebar.Settings
 import com.personal.sidebar.apps.AppInfo
 import com.personal.sidebar.apps.AppRepository
+import com.personal.sidebar.model.HandleConfig
 import com.personal.sidebar.model.RailConfig
 import com.personal.sidebar.model.RailFolder
 import com.personal.sidebar.model.RailGroup
@@ -172,7 +173,6 @@ private object Rail {
     val Fillet = 10.dp
     val EdgeInset = 10.dp
     val BottomInset = 40.dp
-    val TopFolderDrop = 8.dp
     val GroupListMax = 560.dp
 
     /** Rail height with all its items: padding, 5 folders, divider, settings, gaps. */
@@ -385,6 +385,7 @@ private fun appDragData(context: android.content.Context, app: AppInfo): DragAnd
 fun RailPanel(
     edge: Edge,
     rail: RailConfig,
+    handle: HandleConfig,
     registerDismiss: (() -> Unit) -> Unit,
     onDismissed: () -> Unit,
 ) {
@@ -523,6 +524,23 @@ fun RailPanel(
             .coerceAtLeast(120.dp)
         val slide = with(density) { (start + Rail.RailWidth).toPx() }
 
+        // Open level with the edge handle (the trigger area): centre the rail on
+        // the handle's centre, kept on screen. The drawer grows upward from the
+        // rail's bottom, so it may use all the room above it.
+        val railHeight = Rail.NaturalHeight * scale
+        val handleCenter = remember(handle) {
+            // Same placement maths as EdgeHandle (its window starts below the status bar).
+            val dm = context.resources.displayMetrics
+            val screenDp = dm.heightPixels / dm.density
+            val len = handle.lengthDp.toFloat().coerceAtMost(screenDp)
+            ((screenDp - len) * handle.verticalBias.coerceIn(0f, 1f) + len / 2f).dp
+        }
+        val statusTop = with(density) { WindowInsets.statusBars.getTop(this).toDp() }
+        val railBottom = (statusTop + handleCenter + railHeight / 2)
+            .coerceIn(top + railHeight, (maxHeight - bottom).coerceAtLeast(top + railHeight))
+        val bottomGap = (maxHeight - railBottom).coerceAtLeast(0.dp)
+        val roomAbove = (railBottom - top).coerceAtLeast(railHeight)
+
         // While dragging an app: where to drop it (behind the faded sidebar).
         if (dragging != null) SplitDropHint(mirror = mirror, active = zone == SplitZone.SPLIT)
 
@@ -536,7 +554,7 @@ fun RailPanel(
                 mirror = mirror,
                 drawerWidth = drawerWidth,
                 selectedIndex = selected.ordinal,
-                maxHeight = availH / scale,
+                maxHeight = roomAbove / scale,
                 size = drawerSize,
                 modifier = Modifier
                     // Absolute: the handle's side is physical, not locale-relative.
@@ -544,7 +562,7 @@ fun RailPanel(
                     .absolutePadding(
                         left = if (mirror) 0.dp else start / scale,
                         right = if (mirror) start / scale else 0.dp,
-                        bottom = bottom / scale,
+                        bottom = bottomGap / scale,
                     )
                     // One layer for the whole group, so overlapping parts (neck
                     // over rail and drawer) don't show seams at partial opacity.
@@ -624,8 +642,9 @@ private fun neededPackages(groups: Map<RailFolder, List<RailGroup>>, recents: Li
     }
 
 /**
- * Lays out the rail and drawer side by side, bottom-aligned, both stretched to
- * the taller of the two (capped at [maxHeight]). The size animates towards its
+ * Lays out the rail and drawer side by side, bottom-aligned. The drawer is as
+ * tall as its contents (capped at [maxHeight]) but always reaches the selected
+ * button. The size animates towards its
  * target, so switching to a folder with more or fewer apps resizes smoothly.
  * The rail is placed last so it (and the neck it draws) sits above the drawer.
  */
@@ -663,21 +682,21 @@ private fun RailContainer(
         val railNat = Rail.NaturalHeight.roundToPx()
         val maxH = maxOf(maxHeight.roundToPx(), railNat)
         val natural = drawerM.maxIntrinsicHeight(dw).coerceAtMost(maxH)
-        val drop = Rail.TopFolderDrop.roundToPx()
 
-        val targetHeight: Int
-        val targetTop: Int
-        if (selectedIndex == 0 && natural + drop <= railNat) {
-            // Top folder: drawer starts level with the button; square corner.
-            targetHeight = railNat; targetTop = drop
-        } else if (selectedIndex == 0) {
-            // Drawer taller than the rail: keep the top button clear of the
-            // drawer's rounded corner so the neck's fillet has room.
-            val clear = (Rail.DrawerRadius + Rail.Fillet - Rail.RailPadding).roundToPx()
-            targetHeight = maxOf(natural, railNat + clear).coerceAtMost(maxH); targetTop = 0
-        } else {
-            targetHeight = maxOf(natural, railNat); targetTop = 0
-        }
+        // The drawer is only as tall as its contents (no stretching to the
+        // rail, which left a big empty gap with small icons), but it must reach
+        // the selected button so the neck connects. Where the neck meets it, it
+        // either lands exactly on the drawer's top edge (square corner, as for
+        // the top folder) or leaves room for the rounded corner + fillet.
+        val reach = (Rail.anchorFromBottom(selectedIndex, RailFolder.entries.size) + Rail.Button / 2).roundToPx()
+        val clear = (Rail.DrawerRadius + Rail.Fillet).roundToPx()
+        val drawerHeight = when {
+            natural <= reach -> if (selectedIndex == 0) reach else reach + clear
+            natural < reach + clear -> reach + clear
+            else -> natural
+        }.coerceAtMost(maxH)
+        val targetHeight = maxOf(railNat, drawerHeight)
+        val targetTop = targetHeight - drawerHeight
         val target = IntOffset(targetHeight, targetTop)
         if (size.target != target) size.target = target
 
