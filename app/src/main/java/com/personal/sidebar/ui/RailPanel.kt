@@ -60,7 +60,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
-import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
@@ -72,7 +71,6 @@ import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.graphics.drawscope.clipPath
 import androidx.compose.ui.graphics.drawscope.withTransform
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.toArgb
@@ -200,12 +198,18 @@ private const val RECENTS = AppRepository.MAX_PANEL_RECENTS
 
 /** Open/closed state of the drawer; the visible motion is [RailMotion.genie]. */
 private const val GENIE_CLOSED = 0f
-private const val GENIE_PINCH = 1f
-private const val GENIE_OPEN = 2f
+private const val GENIE_OPEN = 1f
+
+/** Material "emphasized" curves: opening decelerates, closing accelerates. */
+private val OpenEasing = CubicBezierEasing(0.05f, 0.7f, 0.1f, 1f)
+private val CloseEasing = CubicBezierEasing(0.3f, 0f, 0.8f, 0.15f)
+private const val OPEN_MS = 300
+private const val CLOSE_MS = 200
 
 /**
- * Drives the drawer's motion. [genie] runs 0 (closed: a sliver squeezed into the
- * rail) → 1 (pinch: rail-side edge narrowed to the selected button) → 2 (open).
+ * Drives the drawer's motion. [genie] runs 0 (closed: shrunk into the selected
+ * button) → 1 (open) in one continuous animation; see [Drawer] for how it maps
+ * to the drawer's transform.
  * [anchor] is the selected button's centre, measured up from the drawer's
  * bottom, in dp; the neck and the genie follow it.
  *
@@ -250,23 +254,25 @@ private class RailMotion(
 
     private fun anchorOf(folder: RailFolder) = Rail.anchorFromBottom(folder.ordinal, count).value
 
-    private suspend fun expand(firstMs: Int, openMs: Int = 150) {
+    // One uninterrupted animation each way (the old two-stage pinch paused
+    // between its stages), scaled so a reversal mid-way keeps its pace.
+    private suspend fun expand() {
         drawerShown = true
-        if (genie.value < GENIE_PINCH) genie.animateTo(GENIE_PINCH, tween(firstMs, easing = Rail.GenieEasing))
-        genie.animateTo(GENIE_OPEN, tween(openMs, easing = Rail.GenieEasing))
+        val ms = (OPEN_MS * (GENIE_OPEN - genie.value)).toInt().coerceAtLeast(1)
+        genie.animateTo(GENIE_OPEN, tween(ms, easing = OpenEasing))
     }
 
     private suspend fun collapse() {
-        if (genie.value > GENIE_PINCH) genie.animateTo(GENIE_PINCH, tween(120, easing = Rail.GenieEasing))
         drawerShown = false
-        genie.animateTo(GENIE_CLOSED, tween(170, easing = Rail.GenieEasing))
+        val ms = (CLOSE_MS * genie.value).toInt().coerceAtLeast(1)
+        genie.animateTo(GENIE_CLOSED, tween(ms, easing = CloseEasing))
     }
 
     /** First appearance: slide the rail in and open the drawer on [selected]. */
     fun show() {
         // Outside [run], so a tap mid-entrance doesn't freeze the slide-in.
         scope.launch { enter.animateTo(1f, tween(170, easing = Rail.SwitchEasing)) }
-        run { expand(firstMs = 110, openMs = 140) }
+        run { expand() }
     }
 
     private fun select(folder: RailFolder) {
@@ -285,11 +291,11 @@ private class RailMotion(
                 select(folder)
                 // Mid-collapse the sliver is still visible: glide it over.
                 if (genie.value > GENIE_CLOSED) {
-                    anchor.animateTo(anchorOf(folder), tween(150, easing = Rail.GenieEasing))
+                    launch { anchor.animateTo(anchorOf(folder), tween(150, easing = Rail.GenieEasing)) }
                 } else {
                     anchor.snapTo(anchorOf(folder))
                 }
-                expand(firstMs = 140)
+                expand()
             }
             // The active folder: close.
             folder == selected -> run { collapse() }
@@ -299,7 +305,7 @@ private class RailMotion(
                 previous = selected
                 select(folder)
                 swap.snapTo(0f)
-                if (genie.value < GENIE_OPEN) launch { expand(firstMs = 150) }
+                if (genie.value < GENIE_OPEN) launch { expand() }
                 launch { anchor.animateTo(anchorOf(folder), tween(Rail.SWITCH_MS, easing = Rail.SwitchEasing)) }
                 swap.animateTo(1f, tween(Rail.SWITCH_MS, easing = LinearEasing))
                 previous = null
@@ -318,8 +324,14 @@ private class RailMotion(
             if (quick) {
                 enter.animateTo(0f, tween(140))
             } else {
+                // Overlap the rail's exit with the drawer's close, so closing is
+                // one motion rather than two in a row.
+                val exit = launch {
+                    delay((CLOSE_MS * genie.value * 0.5f).toLong())
+                    enter.animateTo(0f, tween(180, easing = CloseEasing))
+                }
                 if (drawerShown || genie.value > GENIE_CLOSED) collapse()
-                enter.animateTo(0f, tween(180, easing = Rail.GenieEasing))
+                exit.join()
             }
             onDone()
         }
@@ -879,63 +891,34 @@ private fun DrawScope.drawNeck(top: Float, progress: Float, upperFillet: Float) 
 // ---- Drawer -----------------------------------------------------------------
 
 /**
- * The drawer surface: genie transform + clip, background, and a tap absorber.
+ * The drawer surface: open/close transform, background, and a tap absorber.
  * Its [content] is one [FolderContent] per visible folder, stacked; only the
  * first (incoming) one decides the drawer's height.
+ *
+ * Opening grows the drawer out of the selected button: it starts as a sliver
+ * the button's height at the rail edge, stretches out sideways, and unfolds
+ * vertically slightly behind. It's purely a layer transform (scale, offset,
+ * alpha), so the GPU animates it without redrawing the drawer each frame.
  */
 @Composable
 private fun Drawer(mirror: Boolean, motion: RailMotion, content: @Composable () -> Unit) {
-    val genieHalf = Rail.Button / 2
-    val pullIn = 30.dp
+    val pullIn = 16.dp
     Layout(
         content = content,
         modifier = Modifier
             .graphicsLayer {
-                // Closed → pinch: squeeze horizontally into the button.
                 val p = motion.genie.value.coerceIn(GENIE_CLOSED, GENIE_OPEN)
-                val t = p.coerceAtMost(GENIE_PINCH)
-                val oy = size.height - motion.anchor.value.dp.toPx()
-                scaleX = lerp(0.06f, 1f, t)
-                translationX = lerp(pullIn.toPx(), 0f, t) * (if (mirror) 1f else -1f)
-                transformOrigin = TransformOrigin(if (mirror) 1f else 0f, (oy / size.height).coerceIn(0f, 1f))
-                alpha = (t * 2f).coerceAtMost(1f)
-            }
-            .drawWithContent {
-                val p = motion.genie.value
-                if (p >= GENIE_OPEN) {
-                    drawContent()
-                    return@drawWithContent
-                }
-                // Trapezoid clip: the rail-side edge narrows to the button's
-                // height, the far edge follows once the near one is pinched.
-                val oy = size.height - motion.anchor.value.dp.toPx()
-                val half = genieHalf.toPx()
-                val nearTop: Float
-                val nearBottom: Float
-                val farTop: Float
-                val farBottom: Float
-                if (p >= GENIE_PINCH) {
-                    val t = p - GENIE_PINCH
-                    nearTop = lerp(oy - half, 0f, t); nearBottom = lerp(oy + half, size.height, t)
-                    farTop = 0f; farBottom = size.height
-                } else {
-                    nearTop = oy - half; nearBottom = oy + half
-                    farTop = lerp(oy - half, 0f, p); farBottom = lerp(oy + half, size.height, p)
-                }
-                val near = if (mirror) size.width else 0f
-                val far = if (mirror) 0f else size.width
-                val clip = Path().apply {
-                    moveTo(near, nearTop)
-                    lineTo(far, farTop)
-                    lineTo(far, farBottom)
-                    lineTo(near, nearBottom)
-                    close()
-                }
-                clipPath(clip) { this@drawWithContent.drawContent() }
+                val h = size.height.coerceAtLeast(1f)
+                val oy = h - motion.anchor.value.dp.toPx()
+                val across = (p / 0.75f).coerceIn(0f, 1f)        // width leads…
+                val down = ((p - 0.15f) / 0.85f).coerceIn(0f, 1f) // …height follows
+                scaleX = lerp(0.12f, 1f, across)
+                scaleY = lerp((Rail.Button.toPx() / h).coerceAtMost(1f), 1f, down)
+                translationX = lerp(pullIn.toPx(), 0f, across) * (if (mirror) 1f else -1f)
+                transformOrigin = TransformOrigin(if (mirror) 1f else 0f, (oy / h).coerceIn(0f, 1f))
+                alpha = (p * 3f).coerceAtMost(1f)
             }
             .drawBehind {
-                // (The hand-off's drop shadow is clipped away by the genie clip
-                // in the reference too, so it's not drawn.)
                 // The rail-side top corner squares off as the neck reaches the
                 // drawer's top edge (the top folder), continuously while gliding.
                 val neckTop = size.height - (motion.anchor.value.dp + Rail.Button / 2).toPx()
