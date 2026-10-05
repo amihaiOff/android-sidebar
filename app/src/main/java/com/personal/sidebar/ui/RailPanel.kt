@@ -522,8 +522,11 @@ fun RailPanel(
             ((screenDp - len) * handle.verticalBias.coerceIn(0f, 1f) + len / 2f).dp
         }
         val statusTop = with(density) { WindowInsets.statusBars.getTop(this).toDp() }
-        val railBottom = (statusTop + handleCenter + railHeight / 2)
-            .coerceIn(top + railHeight, (maxHeight - bottom).coerceAtLeast(top + railHeight))
+        val lowest = (maxHeight - bottom).coerceAtLeast(top + railHeight)
+        val railBottom = rail.positionBias?.let { bias ->
+            // Set in settings: 0 = rail at the top of the screen, 1 = at the bottom.
+            top + railHeight + (lowest - top - railHeight) * bias.coerceIn(0f, 1f)
+        } ?: (statusTop + handleCenter + railHeight / 2).coerceIn(top + railHeight, lowest)
         val bottomGap = (maxHeight - railBottom).coerceAtLeast(0.dp)
         val roomAbove = (railBottom - top).coerceAtLeast(railHeight)
 
@@ -940,8 +943,10 @@ private fun FolderContent(
         modifier = modifier
             .fillMaxSize()
             .padding(start = 16.dp, end = 16.dp, top = 22.dp, bottom = 18.dp),
-        verticalArrangement = Arrangement.spacedBy(18.dp),
     ) {
+        // Any extra height (the drawer reaching up to the selected button) goes
+        // above the title, so the title stays right over its groups.
+        Spacer(Modifier.weight(1f))
         Text(
             text = folder.title,
             color = Rail.TextPrimary,
@@ -950,10 +955,8 @@ private fun FolderContent(
             letterSpacing = (-0.01).em,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.padding(start = 6.dp),
+            modifier = Modifier.padding(start = 6.dp, bottom = 10.dp),
         )
-        // Pushes the groups down to the bottom, near the thumb.
-        Spacer(Modifier.weight(1f))
         Column(
             modifier = Modifier
                 .fillMaxWidth()

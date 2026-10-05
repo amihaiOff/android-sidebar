@@ -411,7 +411,7 @@ private fun HomeScreen(
             Design.RAIL -> {
                 Spacer(Modifier.height(8.dp))
                 SectionTitle("Rail look")
-                RailLookCard(config.rail, onRailChange)
+                RailLookCard(config.rail, config.handle.verticalBias, onRailChange)
                 Spacer(Modifier.height(8.dp))
                 SectionTitle("Folders & groups")
                 RailFoldersSection(config.rail, rememberAppMap(), onRailGroupsChange, onEditRailGroup)

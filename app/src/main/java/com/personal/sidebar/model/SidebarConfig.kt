@@ -204,6 +204,9 @@ data class RailConfig(
     /** Long-press and drag an app out of the drawer to open it in split screen
      *  (large screens only, e.g. a foldable's inner screen). */
     val dragToSplit: Boolean = true,
+    /** Where the rail sits vertically: 0 = top .. 1 = bottom of the screen.
+     *  Null = level with the edge handle. */
+    val positionBias: Float? = null,
     /** Folder the drawer opens on; remembers the last one picked. */
     val selected: RailFolder = RailFolder.AI,
     /** Groups per folder. [RailFolder.RECENT] uses only its first group's title;

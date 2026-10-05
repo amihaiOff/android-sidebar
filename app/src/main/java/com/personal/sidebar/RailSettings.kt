@@ -55,13 +55,32 @@ internal fun RailFolder.settingsIcon(): ImageVector = when (this) {
     RailFolder.TOOLS -> Icons.Outlined.Build
 }
 
-/** The rail's look: overall opacity and themed icons. */
+private fun positionText(bias: Float): String = when {
+    bias < 0.15f -> "Top"
+    bias > 0.85f -> "Bottom"
+    bias in 0.4f..0.6f -> "Middle"
+    else -> "${(bias * 100).roundToInt()}%"
+}
+
+/** The rail's look and placement. */
 @Composable
-internal fun RailLookCard(rail: RailConfig, onChange: (RailConfig) -> Unit) {
+internal fun RailLookCard(rail: RailConfig, handleBias: Float, onChange: (RailConfig) -> Unit) {
     Card(Modifier.fillMaxWidth().padding(vertical = 6.dp)) {
         Column(Modifier.padding(16.dp)) {
             SliderRow("Opacity", rail.opacity, 0.4f..1f, "${(rail.opacity * 100).roundToInt()}%") {
                 onChange(rail.copy(opacity = it))
+            }
+            val position = rail.positionBias ?: handleBias
+            SliderRow(
+                "Sidebar position",
+                position,
+                0f..1f,
+                if (rail.positionBias == null) "Level with handle" else positionText(position),
+            ) {
+                onChange(rail.copy(positionBias = it))
+            }
+            if (rail.positionBias != null) {
+                TextButton(onClick = { onChange(rail.copy(positionBias = null)) }) { Text("Match handle") }
             }
             SliderRow(
                 "Icon size",
