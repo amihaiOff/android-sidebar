@@ -20,6 +20,7 @@ import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.absolutePadding
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
@@ -176,7 +177,6 @@ private object Rail {
     val Fillet = 10.dp
     val EdgeInset = 10.dp
     val BottomInset = 40.dp
-    val GroupListMax = 560.dp
 
     /** Rail height with all its items: padding, [count] folders, divider, settings, gaps. */
     fun naturalHeight(count: Int): Dp =
@@ -348,11 +348,17 @@ private class RailMotion(
  * written during measure; [height]/[top] chase it and are read back by measure.
  */
 private class DrawerSize {
-    /** Target container height (x) and drawer top inside it (y), in px. */
+    /** Target drawer height (x) and drawer top (y), in container px. */
     var target by mutableStateOf<IntOffset?>(null)
     val height = Animatable(0f)
     val top = Animatable(0f)
     var ready by mutableStateOf(false)
+    /** Where the rail sits in the container (its height never changes). */
+    var railTop by mutableStateOf(0)
+    var railHeight by mutableStateOf(0)
+
+    /** The selected button's centre ([anchorPx] up from the rail's bottom), in drawer coordinates. */
+    fun neckCenterInDrawer(anchorPx: Float): Float = railTop + railHeight - anchorPx - top.value
 }
 
 /**
@@ -537,8 +543,10 @@ fun RailPanel(
             // Set in settings: 0 = rail at the top of the screen, 1 = at the bottom.
             top + railHeight + (lowest - top - railHeight) * bias.coerceIn(0f, 1f)
         } ?: (statusTop + handleCenter + railHeight / 2).coerceIn(top + railHeight, lowest)
-        val bottomGap = (maxHeight - railBottom).coerceAtLeast(0.dp)
-        val roomAbove = (railBottom - top).coerceAtLeast(railHeight)
+        // The container spans the usable screen height; the rail sits at its
+        // own place inside it and the drawer is laid out around that.
+        val usable = (maxHeight - top - bottom).coerceAtLeast(railHeight)
+        val railTopInContainer = (railBottom - railHeight - top).coerceAtLeast(0.dp)
 
         CompositionLocalProvider(LocalDensity provides Density(density.density * scale, density.fontScale)) {
             val drawerSize = remember { DrawerSize() }
@@ -552,16 +560,17 @@ fun RailPanel(
                 drawerWidth = drawerWidth,
                 selectedIndex = folderIds.indexOf(selected),
                 folderCount = folders.size,
-                maxHeight = roomAbove / scale,
+                railTop = railTopInContainer / scale,
                 size = drawerSize,
                 modifier = Modifier
                     // Absolute: the handle's side is physical, not locale-relative.
-                    .align(if (mirror) AbsoluteAlignment.BottomRight else AbsoluteAlignment.BottomLeft)
+                    .align(if (mirror) AbsoluteAlignment.TopRight else AbsoluteAlignment.TopLeft)
                     .absolutePadding(
                         left = if (mirror) 0.dp else start / scale,
                         right = if (mirror) start / scale else 0.dp,
-                        bottom = bottomGap / scale,
+                        top = top / scale,
                     )
+                    .height(usable / scale)
                     // One layer for the whole group, so overlapping parts (neck
                     // over rail and drawer) don't show seams at partial opacity.
                     .graphicsLayer {
@@ -571,7 +580,7 @@ fun RailPanel(
                         compositingStrategy = CompositingStrategy.Offscreen
                     },
                 drawer = {
-                    Drawer(mirror = mirror, motion = motion) {
+                    Drawer(mirror = mirror, motion = motion, drawerSize = drawerSize) {
                         // The incoming folder first: its height sizes the drawer.
                         key(selected) {
                             FolderContent(
@@ -653,11 +662,13 @@ private fun neededPackages(folders: List<RailFolderConfig>, recents: List<String
     }
 
 /**
- * Lays out the rail and drawer side by side, bottom-aligned. The drawer is as
- * tall as its contents (capped at [maxHeight]) but always reaches the selected
- * button. The size animates towards its
- * target, so switching to a folder with more or fewer apps resizes smoothly.
- * The rail is placed last so it (and the neck it draws) sits above the drawer.
+ * Lays out the rail and drawer side by side within the usable screen height.
+ * The rail keeps its own height at [railTop]. The drawer starts level with the
+ * rail's top and grows downward to fit its contents (always reaching past the
+ * selected button so the neck connects); if that would run off the bottom it
+ * moves up as far as needed, and only beyond the full height does it scroll.
+ * Size changes animate, so switching folders resizes smoothly. The rail is
+ * placed last so it (and the neck it draws) sits above the drawer.
  */
 @Composable
 private fun RailContainer(
@@ -665,7 +676,7 @@ private fun RailContainer(
     drawerWidth: Dp,
     selectedIndex: Int,
     folderCount: Int,
-    maxHeight: Dp,
+    railTop: Dp,
     size: DrawerSize,
     modifier: Modifier,
     drawer: @Composable () -> Unit,
@@ -686,41 +697,39 @@ private fun RailContainer(
             }
         }
     }
-    Layout(content = { drawer(); rail() }, modifier = modifier) { measurables, _ ->
+    Layout(content = { drawer(); rail() }, modifier = modifier) { measurables, constraints ->
         val (drawerM, railM) = measurables
         val railW = Rail.RailWidth.roundToPx()
         val gap = Rail.Gap.roundToPx()
         val dw = drawerWidth.roundToPx()
         val railNat = Rail.naturalHeight(folderCount).roundToPx()
-        val maxH = maxOf(maxHeight.roundToPx(), railNat)
-        val natural = drawerM.maxIntrinsicHeight(dw).coerceAtMost(maxH)
+        val full = if (constraints.hasBoundedHeight) maxOf(constraints.maxHeight, railNat) else railNat
+        val railY = railTop.roundToPx().coerceIn(0, full - railNat)
+        if (size.railTop != railY) size.railTop = railY
+        if (size.railHeight != railNat) size.railHeight = railNat
 
-        // The drawer is only as tall as its contents (no stretching to the
-        // rail, which left a big empty gap with small icons), but it must reach
-        // the selected button so the neck connects. Where the neck meets it, it
-        // either lands exactly on the drawer's top edge (square corner, as for
-        // the top folder) or leaves room for the rounded corner + fillet.
-        val reach = (Rail.anchorFromBottom(selectedIndex, folderCount) + Rail.Button / 2).roundToPx()
+        val neckTop = railY + railNat - (Rail.anchorFromBottom(selectedIndex, folderCount) + Rail.Button / 2).roundToPx()
+        val neckBottom = neckTop + Rail.Button.roundToPx()
         val clear = (Rail.DrawerRadius + Rail.Fillet).roundToPx()
-        val drawerHeight = when {
-            natural <= reach -> if (selectedIndex == 0) reach else reach + clear
-            natural < reach + clear -> reach + clear
-            else -> natural
-        }.coerceAtMost(maxH)
-        val targetHeight = maxOf(railNat, drawerHeight)
-        val targetTop = targetHeight - drawerHeight
-        val target = IntOffset(targetHeight, targetTop)
+        // Level with the first button: the top folder's neck meets a square corner.
+        val startTop = railY + Rail.RailPadding.roundToPx()
+        val natural = drawerM.maxIntrinsicHeight(dw).coerceAtMost(full)
+        var drawerHeight = maxOf(natural, neckBottom + clear - startTop).coerceAtMost(full)
+        var targetTop = startTop
+        if (targetTop + drawerHeight > full) targetTop = (full - drawerHeight).coerceAtLeast(0)
+        drawerHeight = drawerHeight.coerceAtMost(full - targetTop)
+        val target = IntOffset(drawerHeight, targetTop)
         if (size.target != target) size.target = target
 
-        val height = if (size.ready) size.height.value.roundToInt() else targetHeight
+        val height = if (size.ready) size.height.value.roundToInt() else drawerHeight
         val drawerTop = if (size.ready) size.top.value.roundToInt() else targetTop
-        val railP = railM.measure(Constraints.fixed(railW, height))
-        val drawerP = drawerM.measure(Constraints.fixed(dw, (height - drawerTop).coerceAtLeast(0)))
+        val railP = railM.measure(Constraints.fixed(railW, railNat))
+        val drawerP = drawerM.measure(Constraints.fixed(dw, height.coerceAtLeast(0)))
 
         val totalW = railW + gap + dw
-        layout(totalW, height) {
+        layout(totalW, full) {
             drawerP.place(if (mirror) 0 else railW + gap, drawerTop)
-            railP.place(if (mirror) totalW - railW else 0, 0)
+            railP.place(if (mirror) totalW - railW else 0, railY)
         }
     }
 }
@@ -754,7 +763,7 @@ private fun FolderRail(
                     val top = size.height - (motion.anchor.value.dp + Rail.Button / 2).toPx()
                     withTransform({ if (mirror) scale(-1f, 1f, pivot = Offset(size.width / 2f, 0f)) }) {
                         // The upper fillet flattens where the neck meets the drawer's top.
-                        drawNeck(top, neck, upperFillet = (top - drawerSize.top.value).coerceIn(0f, Rail.Fillet.toPx()))
+                        drawNeck(top, neck, upperFillet = (top - (drawerSize.top.value - drawerSize.railTop)).coerceIn(0f, Rail.Fillet.toPx()))
                     }
                 }
             }
@@ -866,7 +875,7 @@ private fun DrawScope.drawNeck(top: Float, progress: Float, upperFillet: Float) 
  * alpha), so the GPU animates it without redrawing the drawer each frame.
  */
 @Composable
-private fun Drawer(mirror: Boolean, motion: RailMotion, content: @Composable () -> Unit) {
+private fun Drawer(mirror: Boolean, motion: RailMotion, drawerSize: DrawerSize, content: @Composable () -> Unit) {
     val pullIn = 16.dp
     Layout(
         content = content,
@@ -874,7 +883,7 @@ private fun Drawer(mirror: Boolean, motion: RailMotion, content: @Composable () 
             .graphicsLayer {
                 val p = motion.genie.value.coerceIn(GENIE_CLOSED, GENIE_OPEN)
                 val h = size.height.coerceAtLeast(1f)
-                val oy = h - motion.anchor.value.dp.toPx()
+                val oy = drawerSize.neckCenterInDrawer(motion.anchor.value.dp.toPx())
                 val across = (p / 0.75f).coerceIn(0f, 1f)        // width leads…
                 val down = ((p - 0.15f) / 0.85f).coerceIn(0f, 1f) // …height follows
                 scaleX = lerp(0.12f, 1f, across)
@@ -886,7 +895,7 @@ private fun Drawer(mirror: Boolean, motion: RailMotion, content: @Composable () 
             .drawBehind {
                 // The rail-side top corner squares off as the neck reaches the
                 // drawer's top edge (the top folder), continuously while gliding.
-                val neckTop = size.height - (motion.anchor.value.dp + Rail.Button / 2).toPx()
+                val neckTop = drawerSize.neckCenterInDrawer(motion.anchor.value.dp.toPx()) - (Rail.Button / 2).toPx()
                 val fillet = neckTop.coerceIn(0f, Rail.Fillet.toPx())
                 val near = CornerRadius((neckTop - fillet).coerceIn(0f, Rail.DrawerRadius.toPx()))
                 val r = CornerRadius(Rail.DrawerRadius.toPx())
@@ -961,7 +970,7 @@ private fun FolderContent(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .heightIn(max = Rail.GroupListMax)
+                // Scrolls only when the drawer is at the screen's full height.
                 .verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {
