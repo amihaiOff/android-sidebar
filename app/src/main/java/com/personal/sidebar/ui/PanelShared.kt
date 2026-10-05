@@ -22,6 +22,19 @@ internal class PanelActions(private val context: Context, private val dismiss: (
         dismiss()
     }
 
+    /**
+     * Opens [pkg] next to the app on screen (split screen), where the system
+     * supports it; otherwise it simply opens.
+     */
+    fun launchAppSplit(pkg: String) {
+        Settings.addRecent(context, pkg)
+        context.packageManager.getLaunchIntentForPackage(pkg)?.let { launch ->
+            launch.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_LAUNCH_ADJACENT)
+            runCatching { context.startActivity(launch) }
+        }
+        dismiss()
+    }
+
     fun openSettings() {
         context.startActivity(
             Intent(context, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)

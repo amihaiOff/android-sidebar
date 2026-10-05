@@ -77,6 +77,17 @@ internal fun RailLookCard(rail: RailConfig, onChange: (RailConfig) -> Unit) {
             }
             Row(Modifier.fillMaxWidth().padding(top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
+                    Text("Drag to split screen", style = MaterialTheme.typography.labelLarge)
+                    Text(
+                        "On large screens (a foldable's inner screen), long-press an app and drag it out of the sidebar to open it next to the current app.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                Switch(checked = rail.dragToSplit, onCheckedChange = { onChange(rail.copy(dragToSplit = it)) })
+            }
+            Row(Modifier.fillMaxWidth().padding(top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
                     Text("Themed icons", style = MaterialTheme.typography.labelLarge)
                     Text(
                         "Warm monochrome icons. Off shows the system's icons, including your icon theme.",

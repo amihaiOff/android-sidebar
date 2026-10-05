@@ -201,6 +201,9 @@ data class RailConfig(
     val showLabels: Boolean = true,
     /** App icon size in the drawer, in dp ([ICON_MIN]..[ICON_MAX]). */
     val iconDp: Int = 60,
+    /** Long-press and drag an app out of the drawer to open it in split screen
+     *  (large screens only, e.g. a foldable's inner screen). */
+    val dragToSplit: Boolean = true,
     /** Folder the drawer opens on; remembers the last one picked. */
     val selected: RailFolder = RailFolder.AI,
     /** Groups per folder. [RailFolder.RECENT] uses only its first group's title;

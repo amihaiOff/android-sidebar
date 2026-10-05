@@ -48,6 +48,14 @@ match.
   pack. The screen behind isn't dimmed; tapping outside, back or an app launch
   closes it.
 
+On large screens (a foldable's inner screen), **long-press an app in the rail's
+drawer and drag it out** to open it in split screen next to the current app; a
+target shows where to drop, and dropping back on the sidebar cancels. The drag
+is labelled the way the system launcher labels app drags, so a system whose own
+split-screen drop targets accept it can take over; otherwise the sidebar opens
+the app with `FLAG_ACTIVITY_LAUNCH_ADJACENT` (the system picks the side). It can
+be turned off in the rail settings.
+
 The edge handle (side, colour, size, position) is shared by both designs.
 
 ### Opening with a gesture
