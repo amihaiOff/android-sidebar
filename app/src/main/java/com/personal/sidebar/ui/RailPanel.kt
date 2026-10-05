@@ -1,0 +1,920 @@
+package com.personal.sidebar.ui
+
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.CubicBezierEasing
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.ime
+import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBars
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.AutoAwesome
+import androidx.compose.material.icons.outlined.Build
+import androidx.compose.material.icons.outlined.History
+import androidx.compose.material.icons.outlined.PlayCircle
+import androidx.compose.material.icons.outlined.Work
+import androidx.compose.material.icons.rounded.Add
+import androidx.compose.material.icons.rounded.AutoAwesome
+import androidx.compose.material.icons.rounded.Build
+import androidx.compose.material.icons.rounded.History
+import androidx.compose.material.icons.rounded.PlayCircle
+import androidx.compose.material.icons.rounded.Tune
+import androidx.compose.material.icons.rounded.Work
+import androidx.compose.material3.Icon
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.MutableState
+import androidx.compose.runtime.State
+import androidx.compose.runtime.derivedStateOf
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.draw.scale
+import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.CompositingStrategy
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.PathEffect
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.TransformOrigin
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.drawOutline
+import androidx.compose.ui.graphics.drawscope.DrawScope
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.clipPath
+import androidx.compose.ui.graphics.drawscope.withTransform
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.Layout
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.OffsetMapping
+import androidx.compose.ui.text.input.TransformedText
+import androidx.compose.ui.text.input.VisualTransformation
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Constraints
+import androidx.compose.ui.unit.Density
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.LayoutDirection
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.em
+import androidx.compose.ui.unit.sp
+import androidx.compose.ui.util.lerp
+import androidx.core.graphics.drawable.toBitmap
+import com.personal.sidebar.Edge
+import com.personal.sidebar.Settings
+import com.personal.sidebar.apps.AppInfo
+import com.personal.sidebar.apps.AppRepository
+import com.personal.sidebar.model.RailConfig
+import com.personal.sidebar.model.RailFolder
+import com.personal.sidebar.model.RailGroup
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.launch
+
+// ---- Design tokens (see the "Thumb rail" hand-off) --------------------------
+
+private object Rail {
+    val Surface = Color(0xFF1E1C17)
+    val CellPress = Color(0xFF2A271F)
+    val ButtonPress = Color(0xFF2F2C25)
+    val Divider = Color(0xFF3C3930)
+    val EmptyBorder = Color(0xFF4A453A)
+    val TextPrimary = Color(0xFFF2EEE6)
+    val TextSecondary = Color(0xFFB7B0A2)
+    val TextTertiary = Color(0xFF7F786B)
+    val Accent = Color(0xFFE8B86A)
+    val ThemedTile = Color(0xFF3A3326)
+    val Scrim = Color.Black.copy(alpha = 0.5f)
+
+    val RailWidth = 68.dp
+    val RailRadius = 34.dp
+    val RailPadding = 8.dp
+    val Button = 52.dp
+    val ItemGap = 4.dp
+    val DividerMargin = 6.dp
+    val Gap = 10.dp
+    val DrawerWidth = 300.dp
+    val DrawerRadius = 32.dp
+    val Fillet = 10.dp
+    val EdgeInset = 10.dp
+    val BottomInset = 40.dp
+    val TopFolderDrop = 8.dp
+    val GroupListMax = 560.dp
+    val Tile = 60.dp
+    val TileRadius = 20.dp
+
+    /** Rail height with all its items: padding, 5 folders, divider, settings, gaps. */
+    val NaturalHeight: Dp = RailPadding * 2 + Button * 6 + (DividerMargin * 2 + 1.dp) + ItemGap * 6
+
+    /** Distance from the rail's bottom to the centre of folder [index] (of [count]). */
+    fun anchorFromBottom(index: Int, count: Int): Dp =
+        RailPadding + Button + ItemGap + (DividerMargin * 2 + 1.dp) + ItemGap +
+            Button / 2 + (Button + ItemGap) * (count - 1 - index)
+
+    val GenieEasing = CubicBezierEasing(0.45f, 0f, 0.25f, 1f)
+    val NeckEasing = CubicBezierEasing(0.2f, 0.9f, 0.25f, 1f)
+}
+
+private const val RECENTS = AppRepository.MAX_PANEL_RECENTS
+
+/** Open/closed state of the drawer; the visible motion is [RailMotion.genie]. */
+private const val GENIE_CLOSED = 0f
+private const val GENIE_PINCH = 1f
+private const val GENIE_OPEN = 2f
+
+/**
+ * Drives the drawer's "genie" motion and folder switching. [genie] runs
+ * 0 (closed: a sliver squeezed into the rail) → 1 (pinch: left edge narrowed to
+ * the selected button) → 2 (open). [anchor] is the selected button's centre,
+ * measured up from the drawer's bottom, in dp. Each action cancels the previous
+ * one, so taps mid-animation retarget smoothly from wherever it is.
+ */
+private class RailMotion(
+    private val scope: CoroutineScope,
+    initial: RailFolder,
+    private val onSelect: (RailFolder) -> Unit,
+) {
+    private val count = RailFolder.entries.size
+    val genie = Animatable(GENIE_CLOSED)
+    val anchor = Animatable(Rail.anchorFromBottom(initial.ordinal, count).value)
+    /** Slide-in of the whole sidebar (scrim, rail, drawer): 0 = gone, 1 = shown. */
+    val enter = Animatable(0f)
+
+    var selected by mutableStateOf(initial)
+        private set
+    /** True while the drawer is open or opening; the active folder shows the neck. */
+    var drawerShown by mutableStateOf(false)
+        private set
+    var dismissing by mutableStateOf(false)
+        private set
+
+    private var job: Job? = null
+
+    private fun run(block: suspend CoroutineScope.() -> Unit) {
+        job?.cancel()
+        job = scope.launch { coroutineScope(block) }
+    }
+
+    private fun anchorOf(folder: RailFolder) = Rail.anchorFromBottom(folder.ordinal, count).value
+
+    private suspend fun expand(firstMs: Int) {
+        drawerShown = true
+        if (genie.value < GENIE_PINCH) genie.animateTo(GENIE_PINCH, tween(firstMs, easing = Rail.GenieEasing))
+        genie.animateTo(GENIE_OPEN, tween(150, easing = Rail.GenieEasing))
+    }
+
+    private suspend fun collapse() {
+        if (genie.value > GENIE_PINCH) genie.animateTo(GENIE_PINCH, tween(120, easing = Rail.GenieEasing))
+        drawerShown = false
+        genie.animateTo(GENIE_CLOSED, tween(170, easing = Rail.GenieEasing))
+    }
+
+    /** First appearance: slide the rail in and open the drawer on [selected]. */
+    fun show() {
+        // Outside [run], so a tap mid-entrance doesn't freeze the slide-in.
+        scope.launch { enter.animateTo(1f, tween(220, easing = Rail.GenieEasing)) }
+        run { expand(firstMs = 150) }
+    }
+
+    fun tap(folder: RailFolder) {
+        if (dismissing) return
+        when {
+            // Closed (or closing): pick the folder, then open.
+            !drawerShown -> run {
+                if (folder != selected) { selected = folder; onSelect(folder) }
+                anchor.snapTo(anchorOf(folder))
+                expand(firstMs = 140)
+            }
+            // The active folder: close.
+            folder == selected -> run { collapse() }
+            // Another folder: pinch, slide the pinch over, expand.
+            else -> run {
+                if (genie.value > GENIE_PINCH) genie.animateTo(GENIE_PINCH, tween(120, easing = Rail.GenieEasing))
+                selected = folder
+                onSelect(folder)
+                anchor.animateTo(anchorOf(folder), tween(150, easing = Rail.GenieEasing))
+                expand(firstMs = 150)
+            }
+        }
+    }
+
+    /**
+     * Animates everything away, then calls [onDone]. [quick] skips the genie
+     * (used after launching something, so the overlay clears out of its way).
+     */
+    fun dismiss(quick: Boolean, onDone: () -> Unit) {
+        if (dismissing) return
+        dismissing = true
+        run {
+            if (quick) {
+                enter.animateTo(0f, tween(140))
+            } else {
+                if (genie.value > GENIE_CLOSED) collapse()
+                enter.animateTo(0f, tween(180, easing = Rail.GenieEasing))
+            }
+            onDone()
+        }
+    }
+}
+
+/** Layout facts the draw phase needs (written during measure, read only when drawing). */
+private data class RailGeometry(
+    /** Drawer top, relative to the rail's top. */
+    val drawerTop: Int = 0,
+    /** The selected folder meets the drawer's top edge: square that corner, no upper fillet. */
+    val squareCorner: Boolean = false,
+)
+
+/**
+ * The [com.personal.sidebar.model.Design.RAIL] panel: a vertical rail of folder
+ * buttons near the bottom of the [edge], and a drawer that grows out of the
+ * selected folder with that folder's groups of apps. Covers the whole screen
+ * with a scrim; tapping the scrim closes everything.
+ */
+@Composable
+fun RailPanel(
+    edge: Edge,
+    rail: RailConfig,
+    registerDismiss: (() -> Unit) -> Unit,
+    onDismissed: () -> Unit,
+) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val mirror = edge == Edge.RIGHT
+
+    var groups by remember { mutableStateOf(rail.groups) }
+    val motion = remember {
+        RailMotion(scope, rail.selected) { folder ->
+            Settings.updateConfig(context) { it.copy(rail = it.rail.copy(selected = folder)) }
+        }
+    }
+    val dismiss = remember { { motion.dismiss(quick = false, onDone = onDismissed) } }
+    val actions = remember { PanelActions(context) { motion.dismiss(quick = true, onDone = onDismissed) } }
+    LaunchedEffect(Unit) {
+        registerDismiss(dismiss)
+        motion.show()
+    }
+
+    // Seed from the warm cache so the first frame has icons; refine async.
+    val seedRecents = remember { Settings.recents(context).take(RECENTS) }
+    var recents by remember { mutableStateOf(seedRecents) }
+    var appMap by remember { mutableStateOf(AppRepository.cachedInfoFor(neededPackages(groups, seedRecents))) }
+    LaunchedEffect(Unit) {
+        val recent = AppRepository.recentPackages(context, RECENTS)
+        recents = recent
+        appMap = AppRepository.infoFor(context, neededPackages(groups, recent))
+    }
+
+    fun renameGroup(folder: RailFolder, id: String, title: String) {
+        val current = groups[folder].orEmpty()
+        val list = if (current.any { it.id == id }) {
+            current.map { if (it.id == id) it.copy(title = title) else it }
+        } else {
+            current + RailGroup(id, title) // e.g. Recent's title group was never saved
+        }
+        groups = groups + (folder to list)
+        // Saved as you type; the next panel open reads it back.
+        Settings.updateConfig(context) { it.copy(rail = it.rail.withGroups(folder, list)) }
+    }
+
+    val iconBitmaps = remember { HashMap<String, androidx.compose.ui.graphics.ImageBitmap>() }
+    fun iconFor(app: AppInfo) = iconBitmaps.getOrPut(app.packageName) {
+        val px = 168
+        if (rail.themedIcons) {
+            tintedIconBitmap(app.icon, px, Rail.Accent.toArgb(), Rail.ThemedTile.toArgb()).asImageBitmap()
+        } else {
+            app.icon.toBitmap(px, px).asImageBitmap()
+        }
+    }
+
+    BoxWithConstraints(
+        Modifier
+            .fillMaxSize()
+            // Scrim: taps that no rail/drawer element consumed close the sidebar.
+            .drawBehind { drawRect(Rail.Scrim, alpha = motion.enter.value) }
+            .pointerInput(Unit) { detectTapGestures { dismiss() } },
+    ) {
+        val density = LocalDensity.current
+        val safe = WindowInsets.safeDrawing
+        val bottom = maxOf(
+            Rail.BottomInset,
+            with(density) { WindowInsets.navigationBars.getBottom(this).toDp() } + 16.dp,
+            with(density) { WindowInsets.ime.getBottom(this).toDp() } + 16.dp,
+        )
+        val top = with(density) { WindowInsets.statusBars.getTop(this).toDp() } + 16.dp
+        val start = Rail.EdgeInset + with(density) {
+            (if (mirror) safe.getRight(this, LayoutDirection.Ltr) else safe.getLeft(this, LayoutDirection.Ltr)).toDp()
+        }
+        val availH = (maxHeight - top - bottom).coerceAtLeast(1.dp)
+        val availW = (maxWidth - start - Rail.EdgeInset).coerceAtLeast(1.dp)
+        // Short screens (a folded phone in landscape): shrink the whole sidebar
+        // uniformly so the rail still fits instead of clipping.
+        val scale = (availH / Rail.NaturalHeight).coerceIn(0.5f, 1f)
+        val drawerWidth = minOf(Rail.DrawerWidth, availW / scale - Rail.RailWidth - Rail.Gap)
+            .coerceAtLeast(120.dp)
+        val slide = with(density) { (start + Rail.RailWidth).toPx() }
+
+        CompositionLocalProvider(LocalDensity provides Density(density.density * scale, density.fontScale)) {
+            val geometry = remember { mutableStateOf(RailGeometry()) }
+            val interactive by remember { derivedStateOf { motion.genie.value >= GENIE_OPEN } }
+            val selected = motion.selected
+
+            RailContainer(
+                mirror = mirror,
+                drawerWidth = drawerWidth,
+                selectedIndex = selected.ordinal,
+                maxHeight = availH / scale,
+                geometry = geometry,
+                modifier = Modifier
+                    .align(if (mirror) Alignment.BottomEnd else Alignment.BottomStart)
+                    .padding(
+                        start = if (mirror) 0.dp else start / scale,
+                        end = if (mirror) start / scale else 0.dp,
+                        bottom = bottom / scale,
+                    )
+                    // One layer for the whole group, so overlapping parts (neck
+                    // over rail and drawer) don't show seams at partial opacity.
+                    .graphicsLayer {
+                        val e = motion.enter.value
+                        alpha = rail.opacity.coerceIn(0.4f, 1f) * e
+                        translationX = (1f - e) * slide * (if (mirror) 1f else -1f)
+                        compositingStrategy = CompositingStrategy.Offscreen
+                    },
+                drawer = {
+                    Drawer(
+                        folder = selected,
+                        groups = groups[selected].orEmpty(),
+                        recents = recents,
+                        appMap = appMap,
+                        interactive = interactive,
+                        mirror = mirror,
+                        motion = motion,
+                        geometry = geometry,
+                        iconFor = ::iconFor,
+                        onLaunch = actions::launchApp,
+                        onAddApps = actions::openSettings,
+                        onRename = { id, title -> renameGroup(selected, id, title) },
+                    )
+                },
+                rail = {
+                    FolderRail(
+                        selected = selected,
+                        drawerShown = motion.drawerShown,
+                        mirror = mirror,
+                        geometry = geometry,
+                        onFolder = motion::tap,
+                        onSettings = actions::openSettings,
+                    )
+                },
+            )
+        }
+    }
+}
+
+/** Packages to resolve icons for: every group's apps plus recents. */
+private fun neededPackages(groups: Map<RailFolder, List<RailGroup>>, recents: List<String>): Set<String> =
+    buildSet {
+        groups.values.forEach { list -> list.forEach { addAll(it.packages) } }
+        addAll(recents)
+    }
+
+/**
+ * Lays out the rail and drawer side by side, bottom-aligned, both stretched to
+ * the taller of the two (capped at [maxHeight]). The rail is placed last so it
+ * (and the neck it draws) sits above the drawer.
+ */
+@Composable
+private fun RailContainer(
+    mirror: Boolean,
+    drawerWidth: Dp,
+    selectedIndex: Int,
+    maxHeight: Dp,
+    geometry: MutableState<RailGeometry>,
+    modifier: Modifier,
+    drawer: @Composable () -> Unit,
+    rail: @Composable () -> Unit,
+) {
+    Layout(content = { drawer(); rail() }, modifier = modifier) { measurables, _ ->
+        val (drawerM, railM) = measurables
+        val railW = Rail.RailWidth.roundToPx()
+        val gap = Rail.Gap.roundToPx()
+        val dw = drawerWidth.roundToPx()
+        val railNat = Rail.NaturalHeight.roundToPx()
+        val maxH = maxOf(maxHeight.roundToPx(), railNat)
+        val natural = drawerM.maxIntrinsicHeight(dw).coerceAtMost(maxH)
+        val drop = Rail.TopFolderDrop.roundToPx()
+
+        val height: Int
+        val drawerTop: Int
+        val square: Boolean
+        if (selectedIndex == 0 && natural + drop <= railNat) {
+            // Top folder: drawer starts level with the button; square corner.
+            height = railNat; drawerTop = drop; square = true
+        } else if (selectedIndex == 0) {
+            // Drawer taller than the rail: keep the top button clear of the
+            // drawer's rounded corner so the neck's fillet has room.
+            val clear = (Rail.DrawerRadius + Rail.Fillet - Rail.RailPadding).roundToPx()
+            height = maxOf(natural, railNat + clear).coerceAtMost(maxH); drawerTop = 0; square = false
+        } else {
+            height = maxOf(natural, railNat); drawerTop = 0; square = false
+        }
+
+        val railP = railM.measure(Constraints.fixed(railW, height))
+        val drawerP = drawerM.measure(Constraints.fixed(dw, height - drawerTop))
+        val g = RailGeometry(drawerTop, square)
+        if (geometry.value != g) geometry.value = g
+
+        val totalW = railW + gap + dw
+        layout(totalW, height) {
+            drawerP.place(if (mirror) 0 else railW + gap, drawerTop)
+            railP.place(if (mirror) totalW - railW else 0, 0)
+        }
+    }
+}
+
+// ---- Rail -------------------------------------------------------------------
+
+private fun RailFolder.icon(active: Boolean): ImageVector = when (this) {
+    RailFolder.RECENT -> if (active) Icons.Rounded.History else Icons.Outlined.History
+    RailFolder.MEDIA -> if (active) Icons.Rounded.PlayCircle else Icons.Outlined.PlayCircle
+    RailFolder.PRODUCTIVITY -> if (active) Icons.Rounded.Work else Icons.Outlined.Work
+    RailFolder.AI -> if (active) Icons.Rounded.AutoAwesome else Icons.Outlined.AutoAwesome
+    RailFolder.TOOLS -> if (active) Icons.Rounded.Build else Icons.Outlined.Build
+}
+
+@Composable
+private fun FolderRail(
+    selected: RailFolder,
+    drawerShown: Boolean,
+    mirror: Boolean,
+    geometry: State<RailGeometry>,
+    onFolder: (RailFolder) -> Unit,
+    onSettings: () -> Unit,
+) {
+    val folders = RailFolder.entries
+    // Each folder's neck grows/shrinks on its own, so switching folders shows
+    // the old one retracting while the new one extends.
+    val necks = folders.map { f ->
+        animateFloatAsState(
+            targetValue = if (drawerShown && f == selected) 1f else 0f,
+            animationSpec = tween(260, easing = Rail.NeckEasing),
+            label = "neck",
+        )
+    }
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .drawBehind {
+                drawRoundRect(Rail.Surface, cornerRadius = androidx.compose.ui.geometry.CornerRadius(Rail.RailRadius.toPx()))
+                val g = geometry.value
+                withTransform({ if (mirror) scale(-1f, 1f, pivot = Offset(size.width / 2f, 0f)) }) {
+                    folders.forEachIndexed { i, _ ->
+                        val p = necks[i].value
+                        if (p > 0f) drawNeck(i, folders.size, p, upperFillet = !(g.squareCorner && i == 0))
+                    }
+                }
+            }
+            // Taps on the rail's empty space shouldn't fall through to the scrim.
+            .pointerInput(Unit) { detectTapGestures { } }
+            .padding(vertical = Rail.RailPadding),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(Rail.ItemGap, Alignment.Bottom),
+    ) {
+        folders.forEach { f ->
+            val active = drawerShown && f == selected
+            RailButton(
+                icon = f.icon(active),
+                tint = if (active) Rail.Accent else Rail.TextSecondary,
+                pressColor = null,
+                description = f.title,
+                onClick = { onFolder(f) },
+            )
+        }
+        Box(
+            Modifier
+                .padding(vertical = Rail.DividerMargin)
+                .size(28.dp, 1.dp)
+                .background(Rail.Divider)
+        )
+        RailButton(
+            icon = Icons.Rounded.Tune,
+            tint = Rail.TextSecondary,
+            pressColor = Rail.ButtonPress,
+            description = "Sidebar settings",
+            onClick = onSettings,
+        )
+    }
+}
+
+@Composable
+private fun RailButton(
+    icon: ImageVector,
+    tint: Color,
+    pressColor: Color?,
+    description: String,
+    onClick: () -> Unit,
+) {
+    val interaction = remember { MutableInteractionSource() }
+    val pressed by interaction.collectIsPressedAsState()
+    Box(
+        modifier = Modifier
+            .size(Rail.Button)
+            .clip(CircleShape)
+            .background(if (pressed && pressColor != null) pressColor else Color.Transparent)
+            .clickable(interactionSource = interaction, indication = null, onClick = onClick),
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(icon, contentDescription = description, tint = tint, modifier = Modifier.size(24.dp))
+    }
+}
+
+/**
+ * The neck joining folder [index]'s button to the drawer: a bar from the
+ * button's centre to 2dp inside the drawer edge, with concave fillets where it
+ * meets the drawer. Drawn in rail coordinates (left-edge orientation), scaled
+ * horizontally by [progress] from the button centre.
+ */
+private fun DrawScope.drawNeck(index: Int, count: Int, progress: Float, upperFillet: Boolean) {
+    val cx = size.width / 2f
+    val edgeX = size.width + Rail.Gap.toPx()
+    val right = edgeX + 2.dp.toPx()
+    val h = Rail.Button.toPx()
+    val top = size.height - (Rail.anchorFromBottom(index, count) + Rail.Button / 2).toPx()
+    val bottom = top + h
+    val r = Rail.Fillet.toPx()
+    fun x(v: Float) = cx + (v - cx) * progress
+
+    val path = Path().apply {
+        moveTo(x(cx), top)
+        if (upperFillet) {
+            lineTo(x(edgeX - r), top)
+            // Concave curve: arc of the circle centred (edgeX - r, top - r).
+            arcTo(Rect(x(edgeX - 2 * r), top - 2 * r, x(edgeX), top), 90f, -90f, false)
+            lineTo(x(right), top - r)
+        } else {
+            lineTo(x(right), top)
+        }
+        lineTo(x(right), bottom + r)
+        lineTo(x(edgeX), bottom + r)
+        arcTo(Rect(x(edgeX - 2 * r), bottom, x(edgeX), bottom + 2 * r), 0f, -90f, false)
+        lineTo(x(cx), bottom)
+        close()
+    }
+    drawPath(path, Rail.Surface, alpha = (progress * 1.6f).coerceAtMost(1f))
+}
+
+// ---- Drawer -----------------------------------------------------------------
+
+@Composable
+private fun Drawer(
+    folder: RailFolder,
+    groups: List<RailGroup>,
+    recents: List<String>,
+    appMap: Map<String, AppInfo>,
+    interactive: Boolean,
+    mirror: Boolean,
+    motion: RailMotion,
+    geometry: State<RailGeometry>,
+    iconFor: (AppInfo) -> androidx.compose.ui.graphics.ImageBitmap,
+    onLaunch: (String) -> Unit,
+    onAddApps: () -> Unit,
+    onRename: (String, String) -> Unit,
+) {
+    val genieHalf = Rail.Button / 2
+    val pullIn = 30.dp
+    Column(
+        modifier = Modifier
+            .graphicsLayer {
+                // Closed → pinch: squeeze horizontally into the button.
+                val p = motion.genie.value.coerceIn(GENIE_CLOSED, GENIE_OPEN)
+                val t = p.coerceAtMost(GENIE_PINCH)
+                val oy = size.height - motion.anchor.value.dp.toPx()
+                scaleX = lerp(0.06f, 1f, t)
+                translationX = lerp(pullIn.toPx(), 0f, t) * (if (mirror) 1f else -1f)
+                transformOrigin = TransformOrigin(if (mirror) 1f else 0f, (oy / size.height).coerceIn(0f, 1f))
+                alpha = (t * 2f).coerceAtMost(1f)
+            }
+            .drawWithContent {
+                val p = motion.genie.value
+                if (p >= GENIE_OPEN) {
+                    drawContent()
+                    return@drawWithContent
+                }
+                // Trapezoid clip: the rail-side edge narrows to the button's
+                // height, the far edge follows once the left is pinched.
+                val oy = size.height - motion.anchor.value.dp.toPx()
+                val half = genieHalf.toPx()
+                val nearTop: Float
+                val nearBottom: Float
+                val farTop: Float
+                val farBottom: Float
+                if (p >= GENIE_PINCH) {
+                    val t = p - GENIE_PINCH
+                    nearTop = lerp(oy - half, 0f, t); nearBottom = lerp(oy + half, size.height, t)
+                    farTop = 0f; farBottom = size.height
+                } else {
+                    nearTop = oy - half; nearBottom = oy + half
+                    farTop = lerp(oy - half, 0f, p); farBottom = lerp(oy + half, size.height, p)
+                }
+                val near = if (mirror) size.width else 0f
+                val far = if (mirror) 0f else size.width
+                val clip = Path().apply {
+                    moveTo(near, nearTop)
+                    lineTo(far, farTop)
+                    lineTo(far, farBottom)
+                    lineTo(near, nearBottom)
+                    close()
+                }
+                clipPath(clip) { this@drawWithContent.drawContent() }
+            }
+            .drawBehind {
+                // (The hand-off's drop shadow is clipped away by the genie clip
+                // in the reference too, so it's not drawn.)
+                val r = Rail.DrawerRadius
+                val square = geometry.value.squareCorner
+                val shape = RoundedCornerShape(
+                    topStart = if (square && !mirror) 0.dp else r,
+                    topEnd = if (square && mirror) 0.dp else r,
+                    bottomEnd = r,
+                    bottomStart = r,
+                )
+                drawOutline(shape.createOutline(size, LayoutDirection.Ltr, this), Rail.Surface)
+            }
+            // Once open, taps on empty drawer space shouldn't close the sidebar.
+            .then(if (interactive) Modifier.pointerInput(Unit) { detectTapGestures { } } else Modifier)
+            .padding(start = 16.dp, end = 16.dp, top = 22.dp, bottom = 18.dp),
+        verticalArrangement = Arrangement.spacedBy(18.dp),
+    ) {
+        Text(
+            text = folder.title,
+            color = Rail.TextPrimary,
+            fontSize = 26.sp,
+            fontWeight = FontWeight.SemiBold,
+            letterSpacing = (-0.01).em,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.padding(start = 6.dp),
+        )
+        // Pushes the groups down to the bottom, near the thumb.
+        Spacer(Modifier.weight(1f))
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .heightIn(max = Rail.GroupListMax)
+                .verticalScroll(rememberScrollState()),
+            verticalArrangement = Arrangement.spacedBy(14.dp),
+        ) {
+            if (folder == RailFolder.RECENT) {
+                val group = groups.firstOrNull() ?: RailGroup("recent-today", "Today")
+                key(folder, group.id) {
+                GroupSection(
+                    group = group,
+                    apps = recents.mapNotNull { appMap[it] },
+                    emptyContent = { EmptyNote("No recent apps yet") },
+                    interactive = interactive,
+                    iconFor = iconFor,
+                    onLaunch = onLaunch,
+                    onRename = { onRename(group.id, it) },
+                )
+                }
+            } else {
+                groups.forEach { group ->
+                    // Keyed so an inline title field never carries over to
+                    // another folder's group.
+                    key(folder, group.id) {
+                    GroupSection(
+                        group = group,
+                        apps = group.packages.mapNotNull { appMap[it] },
+                        emptyContent = { EmptyCell(interactive, onAddApps) },
+                        interactive = interactive,
+                        iconFor = iconFor,
+                        onLaunch = onLaunch,
+                        onRename = { onRename(group.id, it) },
+                    )
+                    }
+                }
+                if (groups.isEmpty()) EmptyCell(interactive, onAddApps)
+            }
+        }
+    }
+}
+
+@Composable
+private fun GroupSection(
+    group: RailGroup,
+    apps: List<AppInfo>,
+    emptyContent: @Composable () -> Unit,
+    interactive: Boolean,
+    iconFor: (AppInfo) -> androidx.compose.ui.graphics.ImageBitmap,
+    onLaunch: (String) -> Unit,
+    onRename: (String) -> Unit,
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        GroupTitle(group.title, interactive, onRename)
+        if (apps.isEmpty()) {
+            emptyContent()
+        } else {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                apps.chunked(3).forEach { row ->
+                    Row(Modifier.fillMaxWidth()) {
+                        row.forEach { app ->
+                            Box(Modifier.weight(1f)) {
+                                AppCell(app.label, iconFor(app), interactive) { onLaunch(app.packageName) }
+                            }
+                        }
+                        repeat(3 - row.size) { Spacer(Modifier.weight(1f)) }
+                    }
+                }
+            }
+        }
+    }
+}
+
+/** Uppercases for display only, so the stored title keeps the user's casing. */
+private object UppercaseTransformation : VisualTransformation {
+    override fun filter(text: AnnotatedString): TransformedText {
+        val upper = text.text.uppercase()
+        // Some characters change length when uppercased (ß → SS); keep the
+        // offsets valid by falling back to the original text then.
+        return if (upper.length == text.text.length) {
+            TransformedText(AnnotatedString(upper), OffsetMapping.Identity)
+        } else {
+            TransformedText(text, OffsetMapping.Identity)
+        }
+    }
+}
+
+/** Inline-editable group title; saves as you type. */
+@Composable
+private fun GroupTitle(title: String, interactive: Boolean, onRename: (String) -> Unit) {
+    var value by remember { mutableStateOf(title) }
+    var focused by remember { mutableStateOf(false) }
+    val focusManager = LocalFocusManager.current
+    val style = TextStyle(
+        color = if (focused) Rail.TextPrimary else Rail.TextSecondary,
+        fontSize = 13.sp,
+        fontWeight = FontWeight.SemiBold,
+        letterSpacing = 0.04.em,
+    )
+    BasicTextField(
+        value = value,
+        onValueChange = { value = it; onRename(it) },
+        enabled = interactive,
+        singleLine = true,
+        textStyle = style,
+        cursorBrush = SolidColor(Rail.Accent),
+        visualTransformation = UppercaseTransformation,
+        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+        keyboardActions = KeyboardActions(onDone = { focusManager.clearFocus() }),
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 6.dp)
+            .onFocusChanged { focused = it.isFocused },
+        decorationBox = { inner ->
+            Box(
+                Modifier
+                    .fillMaxWidth()
+                    .drawBehind {
+                        if (focused) {
+                            val y = size.height - 0.5.dp.toPx()
+                            drawLine(Rail.Accent, Offset(0f, y), Offset(size.width, y), 1.dp.toPx())
+                        }
+                    }
+                    .padding(vertical = 4.dp),
+            ) {
+                if (value.isEmpty()) {
+                    Text("GROUP NAME", style = style.copy(color = Rail.TextTertiary))
+                }
+                inner()
+            }
+        },
+    )
+}
+
+@Composable
+private fun AppCell(
+    label: String,
+    icon: androidx.compose.ui.graphics.ImageBitmap,
+    interactive: Boolean,
+    onClick: () -> Unit,
+) {
+    val interaction = remember { MutableInteractionSource() }
+    val pressed by interaction.collectIsPressedAsState()
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .scale(if (pressed) 0.96f else 1f)
+            .clip(RoundedCornerShape(20.dp))
+            .background(if (pressed) Rail.CellPress else Color.Transparent)
+            .clickable(interactionSource = interaction, indication = null, enabled = interactive, onClick = onClick)
+            .padding(vertical = 6.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Image(
+            bitmap = icon,
+            contentDescription = label,
+            modifier = Modifier.size(Rail.Tile).clip(RoundedCornerShape(Rail.TileRadius)),
+        )
+        Text(
+            text = label,
+            color = Rail.TextPrimary,
+            fontSize = 13.sp,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.padding(horizontal = 4.dp),
+        )
+    }
+}
+
+/** An empty group's placeholder; tapping it opens settings to add apps. */
+@Composable
+private fun EmptyCell(interactive: Boolean, onClick: () -> Unit) {
+    Row(Modifier.fillMaxWidth()) {
+        Column(
+            modifier = Modifier
+                .weight(1f)
+                .clip(RoundedCornerShape(20.dp))
+                .clickable(enabled = interactive, onClick = onClick)
+                .padding(vertical = 6.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Box(
+                Modifier
+                    .size(Rail.Tile)
+                    .drawBehind {
+                        val stroke = 1.5.dp.toPx()
+                        val inset = stroke / 2f
+                        drawRoundRect(
+                            color = Rail.EmptyBorder,
+                            topLeft = Offset(inset, inset),
+                            size = androidx.compose.ui.geometry.Size(size.width - stroke, size.height - stroke),
+                            cornerRadius = androidx.compose.ui.geometry.CornerRadius(Rail.TileRadius.toPx() - inset),
+                            style = Stroke(
+                                width = stroke,
+                                pathEffect = PathEffect.dashPathEffect(floatArrayOf(4.dp.toPx(), 3.dp.toPx())),
+                            ),
+                        )
+                    },
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(Icons.Rounded.Add, contentDescription = null, tint = Rail.TextTertiary, modifier = Modifier.size(22.dp))
+            }
+            Text("Add apps", color = Rail.TextTertiary, fontSize = 13.sp, maxLines = 1)
+        }
+        Spacer(Modifier.weight(2f))
+    }
+}
+
+@Composable
+private fun EmptyNote(text: String) {
+    Text(text, color = Rail.TextTertiary, fontSize = 13.sp, modifier = Modifier.padding(horizontal = 6.dp, vertical = 8.dp))
+}

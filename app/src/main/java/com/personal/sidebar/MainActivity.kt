@@ -34,6 +34,8 @@ import androidx.compose.material.icons.filled.Language
 import androidx.compose.material.icons.outlined.RadioButtonUnchecked
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.RadioButton
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -70,7 +72,10 @@ import androidx.compose.ui.zIndex
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
+import com.personal.sidebar.model.Design
 import com.personal.sidebar.model.HandleConfig
+import com.personal.sidebar.model.RailConfig
+import com.personal.sidebar.model.RailFolder
 import com.personal.sidebar.model.ItemType
 import com.personal.sidebar.model.SidebarConfig
 import com.personal.sidebar.model.SidebarItem
@@ -85,6 +90,7 @@ private sealed interface Screen {
     data object GlassLab : Screen
     data class FolderEdit(val index: Int?, val isGroup: Boolean = false) : Screen
     data class LinkEdit(val index: Int?) : Screen
+    data class RailGroupEdit(val folder: RailFolder, val groupId: String?) : Screen
 }
 
 class MainActivity : ComponentActivity() {
@@ -106,6 +112,17 @@ private fun SidebarRoot() {
     // foreground service from a visible activity is always permitted.
     LaunchedEffect(Unit) {
         if (running && Permissions.canDrawOverlays(context)) SidebarService.start(context)
+    }
+
+    // The panel can change the config too (rail group titles, last folder), so
+    // re-read it whenever we come back rather than overwriting those edits later.
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) config = Settings.config(context)
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
 
     fun commit(new: SidebarConfig) {
@@ -139,6 +156,9 @@ private fun SidebarRoot() {
                 onNewGroup = { screen = Screen.FolderEdit(null, isGroup = true) },
                 onNewLink = { screen = Screen.LinkEdit(null) },
                 onOpenGlassLab = { screen = Screen.GlassLab },
+                onRailChange = { persist(config.copy(rail = it)) },
+                onRailGroupsChange = { commit(config.copy(rail = it)) },
+                onEditRailGroup = { folder, id -> screen = Screen.RailGroupEdit(folder, id) },
                 onEditFolder = { index -> screen = Screen.FolderEdit(index) },
                 onEditLink = { index -> screen = Screen.LinkEdit(index) },
                 onRemoveItem = { index ->
@@ -187,6 +207,32 @@ private fun SidebarRoot() {
                 )
             }
 
+            is Screen.RailGroupEdit -> {
+                val groups = config.rail.groupsOf(s.folder)
+                val existing = s.groupId?.let { id -> groups.firstOrNull { it.id == id } }
+                RailGroupEditScreen(
+                    modifier = mod,
+                    folder = s.folder,
+                    existing = existing,
+                    onSave = { group ->
+                        val list = if (groups.any { it.id == group.id }) {
+                            groups.map { if (it.id == group.id) group else it }
+                        } else {
+                            groups + group
+                        }
+                        commit(config.copy(rail = config.rail.withGroups(s.folder, list)))
+                        screen = Screen.Home
+                    },
+                    onDelete = if (existing != null && s.folder != RailFolder.RECENT) {
+                        {
+                            commit(config.copy(rail = config.rail.withGroups(s.folder, groups - existing)))
+                            screen = Screen.Home
+                        }
+                    } else null,
+                    onCancel = { screen = Screen.Home },
+                )
+            }
+
             is Screen.LinkEdit -> {
                 val idx = s.index
                 LinkEditScreen(
@@ -222,6 +268,9 @@ private fun HomeScreen(
     onNewGroup: () -> Unit,
     onNewLink: () -> Unit,
     onOpenGlassLab: () -> Unit,
+    onRailChange: (RailConfig) -> Unit,
+    onRailGroupsChange: (RailConfig) -> Unit,
+    onEditRailGroup: (RailFolder, String?) -> Unit,
     onEditFolder: (Int) -> Unit,
     onEditLink: (Int) -> Unit,
     onRemoveItem: (Int) -> Unit,
@@ -268,6 +317,10 @@ private fun HomeScreen(
             modifier = Modifier.padding(top = 4.dp, bottom = 16.dp),
         )
 
+        // --- Design: picks which panel, and which settings appear below ------
+        SectionTitle("Design")
+        DesignPicker(config.design) { onConfigChange(config.copy(design = it)) }
+
         // --- Permissions -----------------------------------------------------
         PermissionCard("Draw over other apps", "Required. Shows the handle and panel on top.", overlayGranted) {
             if (!overlayGranted) Button(onClick = { context.startActivity(Permissions.overlaySettingsIntent(context)) }) { Text("Grant") }
@@ -285,7 +338,7 @@ private fun HomeScreen(
         }
 
         Spacer(Modifier.height(8.dp))
-        SectionTitle("Appearance")
+        SectionTitle("Edge handle")
         Card(Modifier.fillMaxWidth().padding(vertical = 6.dp)) {
             Column(Modifier.padding(16.dp)) {
                 HandlePreview(handle)
@@ -322,61 +375,30 @@ private fun HomeScreen(
                 SliderRow("Position", handle.verticalBias, 0f..1f, positionLabel(handle.verticalBias)) {
                     setHandle(handle.copy(verticalBias = it))
                 }
-
-                Spacer(Modifier.height(12.dp))
-                Text(
-                    "The panel's frosted-glass look (blur, tint, edge, background) is tuned in the lab.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                Spacer(Modifier.height(8.dp))
-                OutlinedButton(onClick = onOpenGlassLab) { Text("Panel & glass…") }
             }
         }
 
-        // --- Apps & folders --------------------------------------------------
-        Spacer(Modifier.height(8.dp))
-        SectionTitle("Apps & folders")
-        Card(Modifier.fillMaxWidth().padding(vertical = 6.dp)) {
-            Column(Modifier.padding(16.dp)) {
-                if (config.items.isEmpty()) {
-                    Text(
-                        "No apps added yet. Use the buttons below to choose which apps appear in the panel.",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                } else {
-                    Text(
-                        "Long-press the handle to drag and reorder.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(bottom = 8.dp),
-                    )
-                    ReorderableItems(
-                        items = config.items,
-                        appMap = rememberAppMap(),
-                        onEditFolder = onEditFolder,
-                        onEditLink = onEditLink,
-                        onRemove = onRemoveItem,
-                        onReorder = onReorder,
-                    )
-                }
-                Spacer(Modifier.height(12.dp))
-                Row(
-                    Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    Button(onClick = onAddApps) { Text("Add apps") }
-                    OutlinedButton(onClick = onNewFolder) { Text("New folder") }
-                }
+        // --- Design-specific settings ------------------------------------------
+        when (config.design) {
+            Design.GLASS -> GlassSettings(
+                config = config,
+                onOpenGlassLab = onOpenGlassLab,
+                onAddApps = onAddApps,
+                onNewFolder = onNewFolder,
+                onNewGroup = onNewGroup,
+                onNewLink = onNewLink,
+                onEditFolder = onEditFolder,
+                onEditLink = onEditLink,
+                onRemoveItem = onRemoveItem,
+                onReorder = onReorder,
+            )
+            Design.RAIL -> {
                 Spacer(Modifier.height(8.dp))
-                Row(
-                    Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    OutlinedButton(onClick = onNewGroup) { Text("New group") }
-                    OutlinedButton(onClick = onNewLink) { Text("Add link / PWA") }
-                }
+                SectionTitle("Rail look")
+                RailLookCard(config.rail, onRailChange)
+                Spacer(Modifier.height(8.dp))
+                SectionTitle("Folders & groups")
+                RailFoldersSection(config.rail, rememberAppMap(), onRailGroupsChange, onEditRailGroup)
             }
         }
 
@@ -393,6 +415,138 @@ private fun HomeScreen(
                     )
                 }
                 Switch(checked = running, enabled = overlayGranted, onCheckedChange = onRunningChange)
+            }
+        }
+    }
+}
+
+/** Two cards to pick the panel design; the rest of the settings follow it. */
+@Composable
+private fun DesignPicker(design: Design, onPick: (Design) -> Unit) {
+    val blur = com.personal.sidebar.ui.rememberHardwareBlurAvailable()
+    Row(
+        Modifier.fillMaxWidth().padding(vertical = 6.dp),
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        DesignOption(
+            title = "Glass",
+            description = if (blur) "Frosted panel that slides in from the edge." else "Frosted panel. Real blur is off on this device, so it uses a softer imitation.",
+            selected = design == Design.GLASS,
+            modifier = Modifier.weight(1f),
+        ) { onPick(Design.GLASS) }
+        DesignOption(
+            title = "Rail",
+            description = "Folder rail by your thumb, with a drawer of app groups.",
+            selected = design == Design.RAIL,
+            modifier = Modifier.weight(1f),
+        ) { onPick(Design.RAIL) }
+    }
+}
+
+@Composable
+private fun DesignOption(
+    title: String,
+    description: String,
+    selected: Boolean,
+    modifier: Modifier,
+    onClick: () -> Unit,
+) {
+    Card(
+        onClick = onClick,
+        modifier = modifier,
+        border = if (selected) androidx.compose.foundation.BorderStroke(2.dp, MaterialTheme.colorScheme.primary) else null,
+        colors = if (selected) {
+            CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)
+        } else {
+            CardDefaults.cardColors()
+        },
+    ) {
+        Column(Modifier.padding(14.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                RadioButton(selected = selected, onClick = onClick, modifier = Modifier.size(24.dp))
+                Spacer(Modifier.width(8.dp))
+                Text(title, style = MaterialTheme.typography.titleMedium)
+            }
+            Text(
+                description,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(top = 6.dp),
+            )
+        }
+    }
+}
+
+/** Settings that only apply to the glass panel: the lab, and the curated items. */
+@Composable
+private fun GlassSettings(
+    config: SidebarConfig,
+    onOpenGlassLab: () -> Unit,
+    onAddApps: () -> Unit,
+    onNewFolder: () -> Unit,
+    onNewGroup: () -> Unit,
+    onNewLink: () -> Unit,
+    onEditFolder: (Int) -> Unit,
+    onEditLink: (Int) -> Unit,
+    onRemoveItem: (Int) -> Unit,
+    onReorder: (List<SidebarItem>) -> Unit,
+) {
+    Spacer(Modifier.height(8.dp))
+    SectionTitle("Panel & glass")
+    Card(Modifier.fillMaxWidth().padding(vertical = 6.dp)) {
+        Column(Modifier.padding(16.dp)) {
+            Text(
+                "The panel's frosted-glass look (blur, tint, edge, background) is tuned in the lab.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Spacer(Modifier.height(8.dp))
+            OutlinedButton(onClick = onOpenGlassLab) { Text("Panel & glass…") }
+        }
+    }
+
+    // --- Apps & folders --------------------------------------------------
+    Spacer(Modifier.height(8.dp))
+    SectionTitle("Apps & folders")
+    Card(Modifier.fillMaxWidth().padding(vertical = 6.dp)) {
+        Column(Modifier.padding(16.dp)) {
+            if (config.items.isEmpty()) {
+                Text(
+                    "No apps added yet. Use the buttons below to choose which apps appear in the panel.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            } else {
+                Text(
+                    "Long-press the handle to drag and reorder.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(bottom = 8.dp),
+                )
+                ReorderableItems(
+                    items = config.items,
+                    appMap = rememberAppMap(),
+                    onEditFolder = onEditFolder,
+                    onEditLink = onEditLink,
+                    onRemove = onRemoveItem,
+                    onReorder = onReorder,
+                )
+            }
+            Spacer(Modifier.height(12.dp))
+            Row(
+                Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                Button(onClick = onAddApps) { Text("Add apps") }
+                OutlinedButton(onClick = onNewFolder) { Text("New folder") }
+            }
+            Spacer(Modifier.height(8.dp))
+            Row(
+                Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                OutlinedButton(onClick = onNewGroup) { Text("New group") }
+                OutlinedButton(onClick = onNewLink) { Text("Add link / PWA") }
             }
         }
     }
@@ -459,7 +613,7 @@ private fun ColorSwatch(rgb: Int, selected: Boolean, onClick: () -> Unit) {
 }
 
 @Composable
-private fun SliderRow(
+internal fun SliderRow(
     label: String,
     value: Float,
     range: ClosedFloatingPointRange<Float>,
@@ -484,7 +638,7 @@ private fun LabeledRow(label: String, content: @Composable () -> Unit) {
 }
 
 @Composable
-private fun SectionTitle(text: String) {
+internal fun SectionTitle(text: String) {
     Text(text, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(top = 8.dp, start = 2.dp))
 }
 

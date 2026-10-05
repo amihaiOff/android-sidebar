@@ -5,7 +5,8 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.drawable.Drawable
 import com.personal.sidebar.Settings
-import com.personal.sidebar.model.SidebarItem
+import com.personal.sidebar.model.Design
+import com.personal.sidebar.model.SidebarConfig
 import java.util.concurrent.ConcurrentHashMap
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.sync.Mutex
@@ -115,26 +116,38 @@ object AppRepository {
     }
 
     /**
-     * Pre-resolves everything the panel will show for [items] (curated packages +
-     * recents) so the panel opens against a warm cache instead of a spinner.
-     * Safe to call repeatedly — cached entries are no-ops.
+     * Pre-resolves everything the panel will show for [config] (curated packages
+     * + recents, for whichever design is active) so the panel opens against a
+     * warm cache instead of a spinner. Safe to call repeatedly — cached entries
+     * are no-ops.
      */
-    suspend fun warm(context: Context, items: List<SidebarItem>) {
-        val launchable = launchablePackages(context)
-        val recent = withContext(Dispatchers.IO) {
-            Recents.recentApps(context, launchable, 4).ifEmpty { Settings.recents(context) }
-        }
-        infoFor(context, neededPackages(items, recent))
+    suspend fun warm(context: Context, config: SidebarConfig) {
+        infoFor(context, neededPackages(config, recentPackages(context, MAX_PANEL_RECENTS)))
     }
 
-    /** Packages the panel resolves icons for: curated apps + folder/group members + recents. */
-    fun neededPackages(items: List<SidebarItem>, recents: List<String>): Set<String> = buildSet {
-        for (item in items) {
-            item.packageName?.let { add(it) }
-            addAll(item.packages)
+    /** Most-recent apps: phone-wide with Usage access, else the sidebar's own launches. */
+    suspend fun recentPackages(context: Context, limit: Int): List<String> {
+        val launchable = launchablePackages(context)
+        return withContext(Dispatchers.IO) {
+            Recents.recentApps(context, launchable, limit)
+                .ifEmpty { Settings.recents(context).filter { it in launchable }.take(limit) }
+        }
+    }
+
+    /** Packages the active design resolves icons for: its curated apps + recents. */
+    fun neededPackages(config: SidebarConfig, recents: List<String>): Set<String> = buildSet {
+        when (config.design) {
+            Design.GLASS -> for (item in config.items) {
+                item.packageName?.let { add(it) }
+                addAll(item.packages)
+            }
+            Design.RAIL -> config.rail.groups.values.forEach { groups -> groups.forEach { addAll(it.packages) } }
         }
         addAll(recents)
     }
+
+    /** The most recents any design shows. */
+    const val MAX_PANEL_RECENTS = 6
 
     private fun loadOne(pm: PackageManager, pkg: String): AppInfo? {
         val launch = pm.getLaunchIntentForPackage(pkg) ?: return null

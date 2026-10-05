@@ -155,9 +155,88 @@ data class GroupConfig(
     val titleAlpha: Float = 0.55f,
 )
 
+/**
+ * Which panel design the sidebar uses. Each design has its own panel window,
+ * content and settings; the edge handle is shared.
+ */
+@Serializable
+enum class Design {
+    /** The original frosted-glass panel (needs hardware blur to look its best). */
+    GLASS,
+    /** The opaque "thumb rail": a folder rail with a drawer that grows out of it. */
+    RAIL,
+}
+
+/** The fixed folders on the rail, top to bottom. */
+@Serializable
+enum class RailFolder(val title: String) {
+    RECENT("Recent"),
+    MEDIA("Media"),
+    PRODUCTIVITY("Productivity"),
+    AI("AI"),
+    TOOLS("Tools"),
+}
+
+/** A titled set of apps inside a rail folder. */
+@Serializable
+data class RailGroup(
+    val id: String,
+    val title: String,
+    val packages: List<String> = emptyList(),
+)
+
+/** Settings + content of the [Design.RAIL] panel. */
+@Serializable
+data class RailConfig(
+    /** Opacity of the whole rail + drawer, 0.4..1. */
+    val opacity: Float = 0.88f,
+    /** Warm monochrome icons on a tinted tile instead of each app's own colours. */
+    val themedIcons: Boolean = true,
+    /** Folder the drawer opens on; remembers the last one picked. */
+    val selected: RailFolder = RailFolder.AI,
+    /** Groups per folder. [RailFolder.RECENT] uses only its first group's title;
+     *  its apps come from recents. */
+    val groups: Map<RailFolder, List<RailGroup>> = defaultRailGroups(),
+) {
+    fun groupsOf(folder: RailFolder): List<RailGroup> = groups[folder].orEmpty()
+
+    fun withGroups(folder: RailFolder, list: List<RailGroup>): RailConfig =
+        copy(groups = groups + (folder to list))
+}
+
+/** Starter groups from the design hand-off. Packages that aren't installed are
+ *  simply not shown (and get pruned from the config). */
+fun defaultRailGroups(): Map<RailFolder, List<RailGroup>> = mapOf(
+    RailFolder.RECENT to listOf(RailGroup("recent-today", "Today")),
+    RailFolder.MEDIA to listOf(
+        RailGroup("media-watch", "Watch", listOf("com.google.android.youtube")),
+        RailGroup("media-browse", "Browse & chat", listOf("com.vivaldi.browser", "com.whatsapp")),
+    ),
+    RailFolder.PRODUCTIVITY to listOf(
+        RailGroup(
+            "prod-work", "Work",
+            listOf("com.Slack", "com.google.android.gm", "com.google.android.calendar", "com.samsung.android.calendar"),
+        ),
+        RailGroup("prod-docs", "Docs", listOf("com.google.android.apps.docs", "notion.id")),
+    ),
+    RailFolder.AI to listOf(
+        RailGroup(
+            "ai-assistants", "Assistants",
+            listOf("com.openai.chatgpt", "com.google.android.apps.bard", "com.anthropic.claude"),
+        ),
+        RailGroup("ai-search", "Search", listOf("ai.perplexity.app.android")),
+    ),
+    RailFolder.TOOLS to listOf(
+        RailGroup("tools-system", "System", listOf("com.android.settings", "com.android.vending")),
+        RailGroup("tools-install", "Install", listOf("dev.imranr.obtainium")),
+    ),
+)
+
 /** The whole persisted sidebar configuration. */
 @Serializable
 data class SidebarConfig(
+    val design: Design = Design.GLASS,
+    val rail: RailConfig = RailConfig(),
     val handle: HandleConfig = HandleConfig(),
     val panel: PanelConfig = PanelConfig(),
     val folder: FolderConfig = FolderConfig(),

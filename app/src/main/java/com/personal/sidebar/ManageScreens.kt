@@ -144,7 +144,7 @@ internal fun AppIconSmall(pkg: String?, appMap: Map<String, AppInfo>?, sizeDp: I
 }
 
 @Composable
-private fun SubScreen(
+internal fun SubScreen(
     title: String,
     trailingLabel: String,
     trailingEnabled: Boolean,
@@ -163,7 +163,7 @@ private fun SubScreen(
 }
 
 @Composable
-private fun AppMultiSelectList(
+internal fun AppMultiSelectList(
     all: List<AppInfo>,
     isSelected: (String) -> Boolean,
     onToggle: (String) -> Unit,

@@ -49,7 +49,7 @@ class SidebarApp : Application() {
                     }
                     // Re-warm the panel's icons so the next open stays instant.
                     if (Settings.enabled(app)) {
-                        runCatching { AppRepository.warm(app, Settings.config(app).items) }
+                        runCatching { AppRepository.warm(app, Settings.config(app)) }
                     }
                 }
             }

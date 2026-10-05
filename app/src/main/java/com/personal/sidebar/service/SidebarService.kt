@@ -71,7 +71,7 @@ class SidebarService : Service() {
                 // anything uninstalled while the process was dead (no broadcast).
                 val installed = AppRepository.launchablePackages(applicationContext)
                 Settings.pruneMissing(applicationContext, installed)
-                AppRepository.warm(applicationContext, Settings.config(applicationContext).items)
+                AppRepository.warm(applicationContext, Settings.config(applicationContext))
             }
         }
     }

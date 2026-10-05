@@ -9,16 +9,20 @@ import android.graphics.ColorFilter
 import android.graphics.Outline
 import android.graphics.Path
 import android.graphics.PixelFormat
+import android.graphics.drawable.ColorDrawable
 import android.graphics.drawable.Drawable
 import android.os.Build
 import android.view.Gravity
 import android.view.KeyEvent
+import android.view.Window
 import android.view.WindowManager
 import androidx.compose.ui.platform.ComposeView
 import androidx.core.view.WindowCompat
 import com.personal.sidebar.Edge
 import com.personal.sidebar.model.SidebarConfig
-import com.personal.sidebar.ui.SidebarPanel
+import com.personal.sidebar.model.Design
+import com.personal.sidebar.ui.GlassPanel
+import com.personal.sidebar.ui.RailPanel
 
 /**
  * A fully transparent window background whose [getOutline] is a rounded rect
@@ -58,12 +62,15 @@ private const val PANEL_MAX_WIDTH_DP = 340
 
 /**
  * Owns the on-demand panel. The panel is hosted in a [Dialog] typed as a system
- * overlay — crucially, a Dialog has a real [android.view.Window], so we can use
- * [android.view.Window.setBackgroundBlurRadius], which blurs the backdrop ONLY
- * within the window's bounds. The window is sized to the panel, so the frosted
- * blur (and every other effect) is confined to the panel — nothing leaks to the
- * rest of the screen. (A plain WindowManager overlay can't do this: its only
- * blur option, FLAG_BLUR_BEHIND, blurs the entire screen behind the window.)
+ * overlay. Which window it gets depends on the [Design]:
+ *
+ * - [Design.GLASS]: the window is sized to the panel and uses
+ *   [android.view.Window.setBackgroundBlurRadius], which blurs the backdrop ONLY
+ *   within the window's bounds — so the frost is confined to the panel. (A plain
+ *   WindowManager overlay can't do this: its only blur option, FLAG_BLUR_BEHIND,
+ *   blurs the entire screen behind the window.)
+ * - [Design.RAIL]: a full-screen window with no blur; the panel draws its own
+ *   scrim, and tapping it closes the panel.
  *
  * Nothing stays mounted while hidden — the Dialog is dismissed on close.
  */
@@ -83,29 +90,31 @@ class PanelController(private val context: Context) {
         val newHost = OverlayViewHost()
         val view = ComposeView(context).apply {
             setContent {
-                SidebarPanel(
-                    edge = edge,
-                    items = config.items,
-                    panel = config.panel,
-                    folder = config.folder,
-                    group = config.group,
-                    registerDismiss = { dismissTrigger = it },
-                    onDismissed = { hide() },
-                )
+                val registerDismiss: (() -> Unit) -> Unit = { dismissTrigger = it }
+                when (config.design) {
+                    Design.GLASS -> GlassPanel(
+                        edge = edge,
+                        items = config.items,
+                        panel = config.panel,
+                        folder = config.folder,
+                        group = config.group,
+                        registerDismiss = registerDismiss,
+                        onDismissed = { hide() },
+                    )
+                    Design.RAIL -> RailPanel(
+                        edge = edge,
+                        rail = config.rail,
+                        registerDismiss = registerDismiss,
+                        onDismissed = { hide() },
+                    )
+                }
             }
         }
         newHost.attach(view)
 
-        val metrics = context.resources.displayMetrics
-        val density = metrics.density
-        val width = (metrics.widthPixels * PANEL_WIDTH_FRACTION)
-            .toInt()
-            .coerceAtMost((PANEL_MAX_WIDTH_DP * density).toInt())
-
         val d = Dialog(context, android.R.style.Theme_Translucent_NoTitleBar)
         d.setContentView(view)
         d.setCancelable(true)
-        d.setCanceledOnTouchOutside(true) // tap outside the panel to dismiss
         d.setOnKeyListener { _, keyCode, event ->
             if (keyCode == KeyEvent.KEYCODE_BACK && event.action == KeyEvent.ACTION_UP) {
                 dismissTrigger?.invoke() // animate out; teardown on completion
@@ -123,25 +132,14 @@ class PanelController(private val context: Context) {
 
         d.window?.apply {
             setType(WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY)
-            setWindowAnimations(0) // Compose drives the slide; no dialog scale/fade
-            // Draw edge-to-edge with transparent system bars, so the panel's
-            // blur/tint fill the status- and nav-bar regions instead of the
-            // dialog painting an opaque (black) bar there.
+            setWindowAnimations(0) // Compose drives the motion; no dialog scale/fade
+            // Draw edge-to-edge with transparent system bars, so the panel fills
+            // the status- and nav-bar regions instead of the dialog painting an
+            // opaque (black) bar there.
             WindowCompat.setDecorFitsSystemWindows(this, false)
             statusBarColor = Color.TRANSPARENT
             navigationBarColor = Color.TRANSPARENT
-            // Transparent background whose OUTLINE is a proper rounded rect, so
-            // the backdrop blur is clipped to rounded corners. (A GradientDrawable
-            // with per-corner radii reports only a rectangular outline, which is
-            // why the corner setting had no visible effect on the blur.)
-            val r = config.panel.cornerDp * density
-            val radii = if (edge == Edge.LEFT) {
-                floatArrayOf(0f, 0f, r, r, r, r, 0f, 0f)
-            } else {
-                floatArrayOf(r, r, 0f, 0f, 0f, 0f, r, r)
-            }
-            setBackgroundDrawable(RoundedOutlineDrawable(radii))
-            clearFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND) // never dim the rest of the screen
+            clearFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND) // any dim is drawn by the panel
             setDimAmount(0f)
             addFlags(
                 WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
@@ -149,9 +147,6 @@ class PanelController(private val context: Context) {
                     WindowManager.LayoutParams.FLAG_HARDWARE_ACCELERATED
             )
             val lp = attributes
-            lp.width = width
-            lp.height = WindowManager.LayoutParams.MATCH_PARENT
-            lp.gravity = Gravity.TOP or if (edge == Edge.LEFT) Gravity.START else Gravity.END
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
                 lp.layoutInDisplayCutoutMode =
                     WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_ALWAYS
@@ -160,18 +155,66 @@ class PanelController(private val context: Context) {
                     WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES
             }
             attributes = lp
-            // Backdrop blur CONFINED to the window bounds (Android 12+).
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S &&
-                windowManager.isCrossWindowBlurEnabled &&
-                config.panel.blurDp > 0
-            ) {
-                setBackgroundBlurRadius((config.panel.blurDp * density).toInt())
+            when (config.design) {
+                Design.GLASS -> configureGlassWindow(d, this, config)
+                Design.RAIL -> configureRailWindow(d, this)
             }
         }
 
         runCatching { d.show() }
             .onSuccess { dialog = d; host = newHost }
             .onFailure { newHost.detach() }
+    }
+
+    /** Edge-hugging window sized to the panel, with a backdrop blur clipped to it. */
+    private fun configureGlassWindow(d: Dialog, window: Window, config: SidebarConfig) {
+        val edge = config.handle.edge
+        val metrics = context.resources.displayMetrics
+        val density = metrics.density
+        val width = (metrics.widthPixels * PANEL_WIDTH_FRACTION)
+            .toInt()
+            .coerceAtMost((PANEL_MAX_WIDTH_DP * density).toInt())
+
+        d.setCanceledOnTouchOutside(true) // tap outside the panel to dismiss
+        // Transparent background whose OUTLINE is a proper rounded rect, so the
+        // backdrop blur is clipped to rounded corners. (A GradientDrawable with
+        // per-corner radii reports only a rectangular outline, which is why the
+        // corner setting had no visible effect on the blur.)
+        val r = config.panel.cornerDp * density
+        val radii = if (edge == Edge.LEFT) {
+            floatArrayOf(0f, 0f, r, r, r, r, 0f, 0f)
+        } else {
+            floatArrayOf(r, r, 0f, 0f, 0f, 0f, r, r)
+        }
+        window.setBackgroundDrawable(RoundedOutlineDrawable(radii))
+        val lp = window.attributes
+        lp.width = width
+        lp.height = WindowManager.LayoutParams.MATCH_PARENT
+        lp.gravity = Gravity.TOP or if (edge == Edge.LEFT) Gravity.START else Gravity.END
+        window.attributes = lp
+        // Backdrop blur CONFINED to the window bounds (Android 12+).
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S &&
+            windowManager.isCrossWindowBlurEnabled &&
+            config.panel.blurDp > 0
+        ) {
+            window.setBackgroundBlurRadius((config.panel.blurDp * density).toInt())
+        }
+    }
+
+    /** Full-screen transparent window; the rail panel draws its own scrim. */
+    private fun configureRailWindow(d: Dialog, window: Window) {
+        // The panel covers the whole window and handles scrim taps itself.
+        d.setCanceledOnTouchOutside(false)
+        window.setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
+        // Group titles are editable inline. With edge-to-edge the window isn't
+        // actually resized; the panel reads the IME inset and lifts itself.
+        @Suppress("DEPRECATION")
+        window.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE)
+        val lp = window.attributes
+        lp.width = WindowManager.LayoutParams.MATCH_PARENT
+        lp.height = WindowManager.LayoutParams.MATCH_PARENT
+        lp.gravity = Gravity.TOP or Gravity.START
+        window.attributes = lp
     }
 
     fun hide() {

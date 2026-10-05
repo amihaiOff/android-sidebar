@@ -53,10 +53,16 @@ object Settings {
         prefs(context).edit().putString(KEY_CONFIG, json.encodeToString(config)).apply()
     }
 
+    /** Read-modify-write of the stored config (e.g. edits made from the panel). */
+    fun updateConfig(context: Context, transform: (SidebarConfig) -> SidebarConfig) {
+        setConfig(context, transform(config(context)))
+    }
+
     /**
      * Removes any package no longer in [installed] from the config: loose app
      * tiles, and folder/group memberships. A folder/group left with no apps and
-     * no links is dropped. Links and installed apps are untouched. Returns true
+     * no links is dropped; rail groups are kept (an empty one is a drop target).
+     * Links and installed apps are untouched. Returns true
      * if anything changed. [installed] must be the real launchable set — callers
      * must not pass an empty set (a failed query) or everything would be pruned.
      */
@@ -77,8 +83,11 @@ object Settings {
                 else -> item
             }
         }
-        return if (newItems != cfg.items) {
-            setConfig(context, cfg.copy(items = newItems))
+        val newRailGroups = cfg.rail.groups.mapValues { (_, groups) ->
+            groups.map { g -> g.copy(packages = g.packages.filter { it in installed }) }
+        }
+        return if (newItems != cfg.items || newRailGroups != cfg.rail.groups) {
+            setConfig(context, cfg.copy(items = newItems, rail = cfg.rail.copy(groups = newRailGroups)))
             true
         } else false
     }
