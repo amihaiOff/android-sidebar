@@ -4,11 +4,41 @@ import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.os.Build
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.core.graphics.drawable.toBitmap
 import com.personal.sidebar.MainActivity
 import com.personal.sidebar.Settings
 import com.personal.sidebar.apps.AppRepository
 
 // Pieces shared by every panel design: launching things, and icon rendering.
+
+/**
+ * Rendered icon bitmaps, kept for the life of the process so opening the panel
+ * doesn't re-render every icon on the main thread (which made the opening
+ * animation stutter). The service pre-renders them in the background; cleared
+ * with the app cache when apps or the icon theme change.
+ */
+internal object PanelIcons {
+    private val cache = java.util.concurrent.ConcurrentHashMap<String, androidx.compose.ui.graphics.ImageBitmap>()
+
+    /** [app]'s icon at [px]: the system icon, or a [tint] (fg to bg ARGB) themed tile. */
+    fun get(app: com.personal.sidebar.apps.AppInfo, px: Int, tint: Pair<Int, Int>?): androidx.compose.ui.graphics.ImageBitmap =
+        cache.getOrPut("${app.packageName}:$px:${tint?.first}:${tint?.second}") {
+            // A private copy: the service renders these off the main thread,
+            // and drawing mutates a drawable's bounds.
+            val icon = app.icon.constantState?.newDrawable()?.mutate() ?: app.icon
+            val bmp = if (tint != null) {
+                tintedIconBitmap(icon, px, tint.first, tint.second)
+            } else {
+                // The icon exactly as the system (and its icon theme) draws it.
+                icon.toBitmap(px, px)
+            }
+            bmp.prepareToDraw()
+            bmp.asImageBitmap()
+        }
+
+    fun clear() = cache.clear()
+}
 
 /**
  * What a tap in any panel design does. Each action dismisses the panel via

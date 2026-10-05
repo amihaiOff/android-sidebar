@@ -103,7 +103,11 @@ import com.personal.sidebar.model.RailGroup
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.withContext
+import androidx.compose.runtime.withFrameNanos
 import kotlinx.coroutines.launch
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.LinearEasing
@@ -246,10 +250,10 @@ private class RailMotion(
 
     private fun anchorOf(folder: RailFolder) = Rail.anchorFromBottom(folder.ordinal, count).value
 
-    private suspend fun expand(firstMs: Int) {
+    private suspend fun expand(firstMs: Int, openMs: Int = 150) {
         drawerShown = true
         if (genie.value < GENIE_PINCH) genie.animateTo(GENIE_PINCH, tween(firstMs, easing = Rail.GenieEasing))
-        genie.animateTo(GENIE_OPEN, tween(150, easing = Rail.GenieEasing))
+        genie.animateTo(GENIE_OPEN, tween(openMs, easing = Rail.GenieEasing))
     }
 
     private suspend fun collapse() {
@@ -261,8 +265,8 @@ private class RailMotion(
     /** First appearance: slide the rail in and open the drawer on [selected]. */
     fun show() {
         // Outside [run], so a tap mid-entrance doesn't freeze the slide-in.
-        scope.launch { enter.animateTo(1f, tween(220, easing = Rail.GenieEasing)) }
-        run { expand(firstMs = 150) }
+        scope.launch { enter.animateTo(1f, tween(170, easing = Rail.SwitchEasing)) }
+        run { expand(firstMs = 110, openMs = 140) }
     }
 
     private fun select(folder: RailFolder) {
@@ -342,7 +346,7 @@ private data class CellStyle(
     val iconSize: Dp,
     val showLabels: Boolean,
     val themed: Boolean,
-    val drag: ((AppInfo) -> DragAndDropTransferData)? = null,
+    val drag: ((AppInfo) -> DragAndDropTransferData?)? = null,
 )
 
 /** Where a dragged app would land. */
@@ -403,6 +407,10 @@ fun RailPanel(
     val actions = remember { PanelActions(context) { motion.dismiss(quick = true, onDone = onDismissed) } }
     LaunchedEffect(Unit) {
         registerDismiss(dismiss)
+        // Let the first (heaviest) frames — building the window and UI — go by
+        // while still invisible, so the animation doesn't start with a jump.
+        withFrameNanos { }
+        withFrameNanos { }
         motion.show()
     }
 
@@ -412,8 +420,14 @@ fun RailPanel(
     var appMap by remember { mutableStateOf(AppRepository.cachedInfoFor(neededPackages(groups, seedRecents))) }
     LaunchedEffect(Unit) {
         val recent = AppRepository.recentPackages(context, RECENTS)
-        recents = recent
-        appMap = AppRepository.infoFor(context, neededPackages(groups, recent))
+        val map = AppRepository.infoFor(context, neededPackages(groups, recent))
+        val iconPx = (rail.iconDp.coerceIn(RailConfig.ICON_MIN, RailConfig.ICON_MAX) * context.resources.displayMetrics.density).roundToInt()
+        withContext(Dispatchers.Default) { map.values.forEach { PanelIcons.get(it, iconPx, railIconTint(rail)) } }
+        // Swapping contents mid-animation would stutter it: apply once the
+        // drawer is open (unless the cache was cold and there's nothing yet).
+        if (appMap.isNotEmpty()) snapshotFlow { motion.genie.value >= GENIE_OPEN }.first { it }
+        if (recent != recents) recents = recent
+        if (map != appMap) appMap = map
     }
 
     // Drag-to-split: only where split screen makes sense (large screens).
@@ -432,27 +446,26 @@ fun RailPanel(
     }
     val dragFade by animateFloatAsState(if (dragging != null && zone != SplitZone.CANCEL) 0.3f else 1f, label = "dragFade")
 
-    val cell = CellStyle(
-        iconSize = rail.iconDp.coerceIn(RailConfig.ICON_MIN, RailConfig.ICON_MAX).dp,
-        showLabels = rail.showLabels,
-        themed = rail.themedIcons,
-        drag = if (splitEnabled) { app ->
-            dragging = app.packageName
-            dragStarted = false
-            zone = null
-            @Suppress("NewApi") appDragData(context, app)!!
-        } else null,
-    )
+    // Stable across recompositions, so the app cells don't all recompose.
+    val cell = remember(rail, splitEnabled) {
+        CellStyle(
+            iconSize = rail.iconDp.coerceIn(RailConfig.ICON_MIN, RailConfig.ICON_MAX).dp,
+            showLabels = rail.showLabels,
+            themed = rail.themedIcons,
+            drag = if (splitEnabled) { app ->
+                @Suppress("NewApi")
+                appDragData(context, app)?.also {
+                    dragging = app.packageName
+                    dragStarted = false
+                    zone = null
+                }
+            } else null,
+        )
+    }
     val density = LocalDensity.current
-    val iconBitmaps = remember { HashMap<String, ImageBitmap>() }
-    fun iconFor(app: AppInfo) = iconBitmaps.getOrPut(app.packageName) {
-        val px = with(density) { cell.iconSize.roundToPx() }
-        if (cell.themed) {
-            tintedIconBitmap(app.icon, px, Rail.Accent.toArgb(), Rail.ThemedTile.toArgb()).asImageBitmap()
-        } else {
-            // The icon exactly as the system (and its icon theme) draws it.
-            app.icon.toBitmap(px, px).asImageBitmap()
-        }
+    val iconPx = with(density) { cell.iconSize.roundToPx() }
+    val iconFor: (AppInfo) -> ImageBitmap = remember(iconPx, rail) {
+        { app -> PanelIcons.get(app, iconPx, railIconTint(rail)) }
     }
 
     // The rail + drawer bounds in root (= window, the panel fills it) coordinates,
@@ -584,7 +597,7 @@ fun RailPanel(
                                 appMap = appMap,
                                 interactive = interactive,
                                 cell = cell,
-                                iconFor = ::iconFor,
+                                iconFor = iconFor,
                                 onLaunch = actions::launchApp,
                                 onAddApps = actions::openSettings,
                                 modifier = Modifier.graphicsLayer {
@@ -604,7 +617,7 @@ fun RailPanel(
                                     appMap = appMap,
                                     interactive = false,
                                     cell = cell,
-                                    iconFor = ::iconFor,
+                                    iconFor = iconFor,
                                     onLaunch = {},
                                     onAddApps = {},
                                     modifier = Modifier.graphicsLayer {
@@ -632,6 +645,20 @@ fun RailPanel(
             )
         }
     }
+}
+
+/** Themed-icon colours (glyph, tile), or null for the system's own icons. */
+private fun railIconTint(rail: RailConfig): Pair<Int, Int>? =
+    if (rail.themedIcons) Rail.Accent.toArgb() to Rail.ThemedTile.toArgb() else null
+
+/**
+ * Pre-renders the rail's icons in the background (called by the service when
+ * it warms the app cache), so the panel's first frames don't have to.
+ */
+internal fun prewarmRailIcons(context: android.content.Context, rail: RailConfig, apps: Collection<AppInfo>) {
+    val px = (rail.iconDp.coerceIn(RailConfig.ICON_MIN, RailConfig.ICON_MAX) * context.resources.displayMetrics.density).roundToInt()
+    val tint = railIconTint(rail)
+    apps.forEach { runCatching { PanelIcons.get(it, px, tint) } }
 }
 
 /** Packages to resolve icons for: every group's apps plus recents. */
@@ -1095,7 +1122,7 @@ private fun AppCell(
             detectTapGestures(
                 onPress = { held = true; tryAwaitRelease(); held = false },
                 onTap = { onClick() },
-                onLongPress = { held = false; startTransfer(drag(app)) },
+                onLongPress = { held = false; drag(app)?.let { startTransfer(it) } },
             )
         }
         else -> Modifier.clickable(interactionSource = interaction, indication = null, onClick = onClick)

@@ -125,7 +125,12 @@ object AppRepository {
      * are no-ops.
      */
     suspend fun warm(context: Context, config: SidebarConfig) {
-        infoFor(context, neededPackages(config, recentPackages(context, MAX_PANEL_RECENTS)))
+        val infos = infoFor(context, neededPackages(config, recentPackages(context, MAX_PANEL_RECENTS)))
+        if (config.design == Design.RAIL) {
+            withContext(Dispatchers.Default) {
+                com.personal.sidebar.ui.prewarmRailIcons(context, config.rail, infos.values)
+            }
+        }
     }
 
     /** Most-recent apps: phone-wide with Usage access, else the sidebar's own launches. */
@@ -183,6 +188,7 @@ object AppRepository {
         cache = null
         launchableCache = null
         infoCache.clear()
+        com.personal.sidebar.ui.PanelIcons.clear()
     }
 
     private fun query(context: Context): List<AppInfo> {
