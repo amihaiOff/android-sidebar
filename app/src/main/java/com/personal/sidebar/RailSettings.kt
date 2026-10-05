@@ -13,11 +13,6 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material.icons.outlined.AutoAwesome
-import androidx.compose.material.icons.outlined.Build
-import androidx.compose.material.icons.outlined.History
-import androidx.compose.material.icons.outlined.PlayCircle
-import androidx.compose.material.icons.outlined.Work
 import androidx.compose.material3.Card
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
@@ -36,24 +31,31 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
 import com.personal.sidebar.apps.AppInfo
 import com.personal.sidebar.model.RailConfig
-import com.personal.sidebar.model.RailFolder
+import com.personal.sidebar.model.RailFolderConfig
+import com.personal.sidebar.ui.RailIcons
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.KeyboardArrowUp
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.style.TextOverflow
 import com.personal.sidebar.model.RailGroup
 import java.util.UUID
 import kotlin.math.roundToInt
 
 // Settings for the "thumb rail" design: its look, and the groups in each folder.
 
-internal fun RailFolder.settingsIcon(): ImageVector = when (this) {
-    RailFolder.RECENT -> Icons.Outlined.History
-    RailFolder.MEDIA -> Icons.Outlined.PlayCircle
-    RailFolder.PRODUCTIVITY -> Icons.Outlined.Work
-    RailFolder.AI -> Icons.Outlined.AutoAwesome
-    RailFolder.TOOLS -> Icons.Outlined.Build
-}
 
 private fun positionText(bias: Float): String = when {
     bias < 0.15f -> "Top"
@@ -120,71 +122,187 @@ internal fun RailLookCard(rail: RailConfig, handleBias: Float, onChange: (RailCo
     }
 }
 
-/** One card per rail folder, listing its groups with edit/remove and "Add group". */
+/**
+ * One card per rail folder: its name and icon (edit), order (up/down), delete,
+ * and its groups with edit/remove and "Add group". Then "Add folder".
+ */
 @Composable
 internal fun RailFoldersSection(
     rail: RailConfig,
     appMap: Map<String, AppInfo>?,
     onChange: (RailConfig) -> Unit,
-    onEditGroup: (RailFolder, String?) -> Unit,
+    onEditFolder: (String?) -> Unit,
+    onEditGroup: (String, String?) -> Unit,
 ) {
-    RailFolder.entries.forEach { folder ->
-        val groups = rail.groupsOf(folder)
+    var confirmDelete by remember { mutableStateOf<RailFolderConfig?>(null) }
+    val folders = rail.folders
+    folders.forEachIndexed { index, folder ->
+        val groups = folder.groups
         Card(Modifier.fillMaxWidth().padding(vertical = 6.dp)) {
-            Column(Modifier.padding(16.dp)) {
+            Column(Modifier.padding(start = 16.dp, end = 4.dp, top = 8.dp, bottom = 16.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(folder.settingsIcon(), contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                    Icon(RailIcons.get(folder.icon).outlined, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
                     Spacer(Modifier.width(12.dp))
-                    Text(folder.title, style = MaterialTheme.typography.titleMedium)
+                    Text(
+                        folder.title.ifBlank { "Untitled" },
+                        style = MaterialTheme.typography.titleMedium,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f),
+                    )
+                    IconButton(onClick = { onChange(rail.copy(folders = folders.move(index, index - 1))) }, enabled = index > 0) {
+                        Icon(Icons.Filled.KeyboardArrowUp, contentDescription = "Move up")
+                    }
+                    IconButton(onClick = { onChange(rail.copy(folders = folders.move(index, index + 1))) }, enabled = index < folders.lastIndex) {
+                        Icon(Icons.Filled.KeyboardArrowDown, contentDescription = "Move down")
+                    }
+                    IconButton(onClick = { onEditFolder(folder.id) }) {
+                        Icon(Icons.Filled.Edit, contentDescription = "Rename folder")
+                    }
                 }
-                if (folder == RailFolder.RECENT) {
-                    val group = groups.firstOrNull()
-                    Row(Modifier.fillMaxWidth().padding(top = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Column(Modifier.weight(1f)) {
-                            Text(group?.title?.ifBlank { null } ?: "Untitled", style = MaterialTheme.typography.bodyLarge)
-                            Text(
-                                "Filled with your recent apps (phone-wide with Usage access).",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-                        }
-                        IconButton(onClick = { onEditGroup(folder, group?.id) }) {
-                            Icon(Icons.Filled.Edit, contentDescription = "Rename")
-                        }
-                    }
-                } else {
-                    if (groups.isEmpty()) {
-                        Text(
-                            "No groups yet.",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.padding(top = 8.dp),
-                        )
-                    }
-                    groups.forEach { group ->
+                Column(Modifier.padding(end = 12.dp)) {
+                    if (folder.recent) {
+                        val group = groups.firstOrNull()
                         Row(Modifier.fillMaxWidth().padding(top = 4.dp), verticalAlignment = Alignment.CenterVertically) {
                             Column(Modifier.weight(1f)) {
-                                Text(group.title.ifBlank { "Untitled" }, style = MaterialTheme.typography.bodyLarge)
-                                val names = group.packages.mapNotNull { appMap?.get(it)?.label }
+                                Text(group?.title?.ifBlank { null } ?: "Untitled", style = MaterialTheme.typography.bodyLarge)
                                 Text(
-                                    if (names.isEmpty()) "No apps" else names.joinToString(" · "),
+                                    "Filled with your recent apps (phone-wide with Usage access).",
                                     style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    maxLines = 1,
                                 )
                             }
-                            IconButton(onClick = { onEditGroup(folder, group.id) }) {
-                                Icon(Icons.Filled.Edit, contentDescription = "Edit")
+                            IconButton(onClick = { onEditGroup(folder.id, group?.id) }) {
+                                Icon(Icons.Filled.Edit, contentDescription = "Rename")
                             }
-                            IconButton(onClick = {
-                                onChange(rail.withGroups(folder, groups.filter { it.id != group.id }))
-                            }) {
-                                Icon(Icons.Filled.Delete, contentDescription = "Remove")
+                        }
+                    } else {
+                        if (groups.isEmpty()) {
+                            Text(
+                                "No groups yet.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.padding(top = 8.dp),
+                            )
+                        }
+                        groups.forEach { group ->
+                            Row(Modifier.fillMaxWidth().padding(top = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                                Column(Modifier.weight(1f)) {
+                                    Text(group.title.ifBlank { "Untitled" }, style = MaterialTheme.typography.bodyLarge)
+                                    val names = group.packages.mapNotNull { appMap?.get(it)?.label }
+                                    Text(
+                                        if (names.isEmpty()) "No apps" else names.joinToString(" · "),
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        maxLines = 1,
+                                    )
+                                }
+                                IconButton(onClick = { onEditGroup(folder.id, group.id) }) {
+                                    Icon(Icons.Filled.Edit, contentDescription = "Edit")
+                                }
+                                IconButton(onClick = {
+                                    onChange(rail.withGroups(folder.id, groups.filter { it.id != group.id }))
+                                }) {
+                                    Icon(Icons.Filled.Delete, contentDescription = "Remove")
+                                }
                             }
                         }
                     }
-                    Spacer(Modifier.height(8.dp))
-                    OutlinedButton(onClick = { onEditGroup(folder, null) }) { Text("Add group") }
+                    Row(Modifier.fillMaxWidth().padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        if (!folder.recent) {
+                            OutlinedButton(onClick = { onEditGroup(folder.id, null) }) { Text("Add group") }
+                        }
+                        if (folders.size > 1) {
+                            TextButton(onClick = { confirmDelete = folder }) { Text("Delete folder") }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    if (folders.size < RailConfig.MAX_FOLDERS) {
+        Button(onClick = { onEditFolder(null) }, modifier = Modifier.padding(vertical = 6.dp)) { Text("Add folder") }
+    } else {
+        Text(
+            "The rail holds up to ${RailConfig.MAX_FOLDERS} folders.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(vertical = 6.dp, horizontal = 2.dp),
+        )
+    }
+
+    confirmDelete?.let { folder ->
+        AlertDialog(
+            onDismissRequest = { confirmDelete = null },
+            title = { Text("Delete \"${folder.title.ifBlank { "Untitled" }}\"?") },
+            text = { Text("Its groups are deleted too. The apps themselves aren't affected.") },
+            confirmButton = {
+                TextButton(onClick = {
+                    onChange(rail.copy(folders = folders.filter { it.id != folder.id }))
+                    confirmDelete = null
+                }) { Text("Delete") }
+            },
+            dismissButton = { TextButton(onClick = { confirmDelete = null }) { Text("Cancel") } },
+        )
+    }
+}
+
+private fun <T> List<T>.move(from: Int, to: Int): List<T> {
+    if (to !in indices) return this
+    return toMutableList().apply { add(to, removeAt(from)) }
+}
+
+/** Create or edit a rail folder: its name and its icon. */
+@Composable
+internal fun RailFolderEditScreen(
+    modifier: Modifier,
+    existing: RailFolderConfig?,
+    onSave: (title: String, icon: String) -> Unit,
+    onCancel: () -> Unit,
+) {
+    var title by remember { mutableStateOf(existing?.title ?: "") }
+    var icon by remember { mutableStateOf(existing?.icon ?: "folder") }
+    Box(modifier.fillMaxSize()) {
+        SubScreen(
+            title = if (existing == null) "New folder" else "Edit folder",
+            trailingLabel = "Save",
+            trailingEnabled = title.isNotBlank(),
+            onBack = onCancel,
+            onTrailing = { onSave(title.trim(), icon) },
+        ) {
+            OutlinedTextField(
+                value = title,
+                onValueChange = { title = it },
+                label = { Text("Folder name") },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp),
+            )
+            Text(
+                "Icon",
+                style = MaterialTheme.typography.labelLarge,
+                modifier = Modifier.padding(start = 8.dp, top = 12.dp, bottom = 4.dp),
+            )
+            LazyVerticalGrid(
+                columns = GridCells.Adaptive(56.dp),
+                modifier = Modifier.fillMaxSize().padding(horizontal = 8.dp),
+            ) {
+                items(RailIcons.all, key = { it.key }) { entry ->
+                    val selected = entry.key == icon
+                    Box(
+                        Modifier
+                            .padding(4.dp)
+                            .size(48.dp)
+                            .clip(RoundedCornerShape(14.dp))
+                            .background(if (selected) MaterialTheme.colorScheme.primaryContainer else Color.Transparent)
+                            .clickable { icon = entry.key },
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Icon(
+                            if (selected) entry.filled else entry.outlined,
+                            contentDescription = entry.key,
+                            tint = if (selected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
                 }
             }
         }
@@ -198,13 +316,13 @@ internal fun RailFoldersSection(
 @Composable
 internal fun RailGroupEditScreen(
     modifier: Modifier,
-    folder: RailFolder,
+    folder: RailFolderConfig,
     existing: RailGroup?,
     onSave: (RailGroup) -> Unit,
     onDelete: (() -> Unit)?,
     onCancel: () -> Unit,
 ) {
-    val pickApps = folder != RailFolder.RECENT
+    val pickApps = !folder.recent
     val all = if (pickApps) rememberAllApps() else emptyList()
     var title by remember { mutableStateOf(existing?.title ?: "") }
     val selected = remember { mutableStateListOf<String>().apply { existing?.packages?.let { addAll(it) } } }

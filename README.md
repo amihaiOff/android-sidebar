@@ -34,9 +34,10 @@ match.
 - **Glass** — the original frosted panel that slides in from the edge. It looks
   best with the system's hardware blur, which some devices (e.g. Samsung, or any
   phone in battery saver) don't offer; there it falls back to a software frost.
-- **Rail** — an opaque "thumb rail" that doesn't depend on blur. A pill of five
-  folder buttons (Recent, Media, Productivity, AI, Tools) sits near the bottom
-  of the screen edge; tapping one grows a drawer out of it with that folder's
+- **Rail** — an opaque "thumb rail" that doesn't depend on blur. A pill of
+  folder buttons (by default Recent, Media, Productivity, AI, Tools — add,
+  rename, re-icon, reorder or delete them in settings, up to 8) sits by the
+  screen edge; tapping one grows a drawer out of it with that folder's
   **groups** of apps, kept low near your thumb. The selected folder is joined
   to the drawer by a "neck", and the drawer opens and closes with a genie-style
   pinch into the button. Recent fills itself from your recent apps; the other

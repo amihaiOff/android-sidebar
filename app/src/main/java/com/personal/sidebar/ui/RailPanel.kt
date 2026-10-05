@@ -96,7 +96,8 @@ import com.personal.sidebar.apps.AppInfo
 import com.personal.sidebar.apps.AppRepository
 import com.personal.sidebar.model.HandleConfig
 import com.personal.sidebar.model.RailConfig
-import com.personal.sidebar.model.RailFolder
+import com.personal.sidebar.model.RailFolderConfig
+import com.personal.sidebar.model.defaultRailFolders
 import com.personal.sidebar.model.RailGroup
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.coroutineScope
@@ -177,8 +178,9 @@ private object Rail {
     val BottomInset = 40.dp
     val GroupListMax = 560.dp
 
-    /** Rail height with all its items: padding, 5 folders, divider, settings, gaps. */
-    val NaturalHeight: Dp = RailPadding * 2 + Button * 6 + (DividerMargin * 2 + 1.dp) + ItemGap * 6
+    /** Rail height with all its items: padding, [count] folders, divider, settings, gaps. */
+    fun naturalHeight(count: Int): Dp =
+        RailPadding * 2 + Button * (count + 1) + (DividerMargin * 2 + 1.dp) + ItemGap * (count + 1)
 
     /** Distance from the rail's bottom to the centre of folder [index] (of [count]). */
     fun anchorFromBottom(index: Int, count: Int): Dp =
@@ -221,12 +223,15 @@ private const val CLOSE_MS = 200
  */
 private class RailMotion(
     private val scope: CoroutineScope,
-    initial: RailFolder,
-    private val onSelect: (RailFolder) -> Unit,
+    /** Folder ids, top to bottom. */
+    private val folderIds: List<String>,
+    initial: String,
+    private val onSelect: (String) -> Unit,
 ) {
-    private val count = RailFolder.entries.size
+    private val count = folderIds.size
+    private fun indexOf(id: String) = folderIds.indexOf(id).coerceAtLeast(0)
     val genie = Animatable(GENIE_CLOSED)
-    val anchor = Animatable(Rail.anchorFromBottom(initial.ordinal, count).value)
+    val anchor = Animatable(Rail.anchorFromBottom(indexOf(initial), count).value)
     /** Slide-in of the whole sidebar (rail + drawer): 0 = gone, 1 = shown. */
     val enter = Animatable(0f)
     /** Cross-fade progress from [previous] to [selected]. */
@@ -234,7 +239,7 @@ private class RailMotion(
 
     var selected by mutableStateOf(initial)
         private set
-    var previous by mutableStateOf<RailFolder?>(null)
+    var previous by mutableStateOf<String?>(null)
         private set
     /** +1 when the newly selected folder is below the previous one, -1 above. */
     var swapDirection by mutableStateOf(1)
@@ -252,7 +257,7 @@ private class RailMotion(
         job = scope.launch { coroutineScope(block) }
     }
 
-    private fun anchorOf(folder: RailFolder) = Rail.anchorFromBottom(folder.ordinal, count).value
+    private fun anchorOf(folder: String) = Rail.anchorFromBottom(indexOf(folder), count).value
 
     // One uninterrupted animation each way (the old two-stage pinch paused
     // between its stages), scaled so a reversal mid-way keeps its pace.
@@ -275,13 +280,13 @@ private class RailMotion(
         run { expand() }
     }
 
-    private fun select(folder: RailFolder) {
+    private fun select(folder: String) {
         if (folder == selected) return
         selected = folder
         onSelect(folder)
     }
 
-    fun tap(folder: RailFolder) {
+    fun tap(folder: String) {
         if (dismissing) return
         when {
             // Closed (or closing): pick the folder, then open.
@@ -301,7 +306,7 @@ private class RailMotion(
             folder == selected -> run { collapse() }
             // Another folder: glide over and cross-fade, drawer stays open.
             else -> run {
-                swapDirection = if (folder.ordinal > selected.ordinal) 1 else -1
+                swapDirection = if (indexOf(folder) > indexOf(selected)) 1 else -1
                 previous = selected
                 select(folder)
                 swap.snapTo(0f)
@@ -404,11 +409,15 @@ fun RailPanel(
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val mirror = edge == Edge.RIGHT
-    val groups = rail.groups
+    // Always at least one folder (settings won't delete the last one).
+    val folders = rail.folders.ifEmpty { defaultRailFolders() }
+    val folderIds = remember(folders) { folders.map { it.id } }
+    val folderById = remember(folders) { folders.associateBy { it.id } }
 
     val motion = remember {
-        RailMotion(scope, rail.selected) { folder ->
-            Settings.updateConfig(context) { it.copy(rail = it.rail.copy(selected = folder)) }
+        val initial = rail.openingFolder()?.takeIf { it.id in folderIds }?.id ?: folderIds.first()
+        RailMotion(scope, folderIds, initial) { id ->
+            Settings.updateConfig(context) { it.copy(rail = it.rail.copy(selectedFolder = id)) }
         }
     }
     val dismiss = remember { { motion.dismiss(quick = false, onDone = onDismissed) } }
@@ -425,10 +434,10 @@ fun RailPanel(
     // Seed from the warm cache so the first frame has icons; refine async.
     val seedRecents = remember { Settings.recents(context).take(RECENTS) }
     var recents by remember { mutableStateOf(seedRecents) }
-    var appMap by remember { mutableStateOf(AppRepository.cachedInfoFor(neededPackages(groups, seedRecents))) }
+    var appMap by remember { mutableStateOf(AppRepository.cachedInfoFor(neededPackages(folders, seedRecents))) }
     LaunchedEffect(Unit) {
         val recent = AppRepository.recentPackages(context, RECENTS)
-        val map = AppRepository.infoFor(context, neededPackages(groups, recent))
+        val map = AppRepository.infoFor(context, neededPackages(folders, recent))
         val iconPx = (rail.iconDp.coerceIn(RailConfig.ICON_MIN, RailConfig.ICON_MAX) * context.resources.displayMetrics.density).roundToInt()
         withContext(Dispatchers.Default) { map.values.forEach { PanelIcons.get(it, iconPx, railIconTint(rail)) } }
         // Swapping contents mid-animation would stutter it: apply once the
@@ -505,7 +514,8 @@ fun RailPanel(
         val availW = (maxWidth - start - Rail.EdgeInset).coerceAtLeast(1.dp)
         // Short screens (a folded phone in landscape): shrink the whole sidebar
         // uniformly so the rail still fits instead of clipping.
-        val scale = (availH / Rail.NaturalHeight).coerceIn(0.5f, 1f)
+        val railNatural = Rail.naturalHeight(folders.size)
+        val scale = (availH / railNatural).coerceIn(0.5f, 1f)
         val drawerWidth = minOf(Rail.DrawerWidth, availW / scale - Rail.RailWidth - Rail.Gap)
             .coerceAtLeast(120.dp)
         val slide = with(density) { (start + Rail.RailWidth).toPx() }
@@ -513,7 +523,7 @@ fun RailPanel(
         // Open level with the edge handle (the trigger area): centre the rail on
         // the handle's centre, kept on screen. The drawer grows upward from the
         // rail's bottom, so it may use all the room above it.
-        val railHeight = Rail.NaturalHeight * scale
+        val railHeight = railNatural * scale
         val handleCenter = remember(handle) {
             // Same placement maths as EdgeHandle (its window starts below the status bar).
             val dm = context.resources.displayMetrics
@@ -535,11 +545,13 @@ fun RailPanel(
             val interactive by remember { derivedStateOf { motion.genie.value >= GENIE_OPEN } }
             val selected = motion.selected
             val previous = motion.previous
+            val selectedFolder = folderById.getValue(selected)
 
             RailContainer(
                 mirror = mirror,
                 drawerWidth = drawerWidth,
-                selectedIndex = selected.ordinal,
+                selectedIndex = folderIds.indexOf(selected),
+                folderCount = folders.size,
                 maxHeight = roomAbove / scale,
                 size = drawerSize,
                 modifier = Modifier
@@ -563,8 +575,7 @@ fun RailPanel(
                         // The incoming folder first: its height sizes the drawer.
                         key(selected) {
                             FolderContent(
-                                folder = selected,
-                                groups = groups[selected].orEmpty(),
+                                folder = selectedFolder,
                                 recents = recents,
                                 appMap = appMap,
                                 interactive = interactive,
@@ -580,11 +591,11 @@ fun RailPanel(
                                 },
                             )
                         }
-                        if (previous != null && previous != selected) {
+                        val previousFolder = previous?.let { folderById[it] }
+                        if (previousFolder != null && previous != selected) {
                             key(previous) {
                                 FolderContent(
-                                    folder = previous,
-                                    groups = groups[previous].orEmpty(),
+                                    folder = previousFolder,
                                     recents = recents,
                                     appMap = appMap,
                                     interactive = false,
@@ -605,6 +616,7 @@ fun RailPanel(
                 },
                 rail = {
                     FolderRail(
+                        folders = folders,
                         selected = selected,
                         drawerShown = motion.drawerShown,
                         mirror = mirror,
@@ -634,9 +646,9 @@ internal fun prewarmRailIcons(context: android.content.Context, rail: RailConfig
 }
 
 /** Packages to resolve icons for: every group's apps plus recents. */
-private fun neededPackages(groups: Map<RailFolder, List<RailGroup>>, recents: List<String>): Set<String> =
+private fun neededPackages(folders: List<RailFolderConfig>, recents: List<String>): Set<String> =
     buildSet {
-        groups.values.forEach { list -> list.forEach { addAll(it.packages) } }
+        folders.forEach { f -> f.groups.forEach { addAll(it.packages) } }
         addAll(recents)
     }
 
@@ -652,6 +664,7 @@ private fun RailContainer(
     mirror: Boolean,
     drawerWidth: Dp,
     selectedIndex: Int,
+    folderCount: Int,
     maxHeight: Dp,
     size: DrawerSize,
     modifier: Modifier,
@@ -678,7 +691,7 @@ private fun RailContainer(
         val railW = Rail.RailWidth.roundToPx()
         val gap = Rail.Gap.roundToPx()
         val dw = drawerWidth.roundToPx()
-        val railNat = Rail.NaturalHeight.roundToPx()
+        val railNat = Rail.naturalHeight(folderCount).roundToPx()
         val maxH = maxOf(maxHeight.roundToPx(), railNat)
         val natural = drawerM.maxIntrinsicHeight(dw).coerceAtMost(maxH)
 
@@ -687,7 +700,7 @@ private fun RailContainer(
         // the selected button so the neck connects. Where the neck meets it, it
         // either lands exactly on the drawer's top edge (square corner, as for
         // the top folder) or leaves room for the rounded corner + fillet.
-        val reach = (Rail.anchorFromBottom(selectedIndex, RailFolder.entries.size) + Rail.Button / 2).roundToPx()
+        val reach = (Rail.anchorFromBottom(selectedIndex, folderCount) + Rail.Button / 2).roundToPx()
         val clear = (Rail.DrawerRadius + Rail.Fillet).roundToPx()
         val drawerHeight = when {
             natural <= reach -> if (selectedIndex == 0) reach else reach + clear
@@ -714,25 +727,17 @@ private fun RailContainer(
 
 // ---- Rail -------------------------------------------------------------------
 
-private fun RailFolder.icon(active: Boolean): ImageVector = when (this) {
-    RailFolder.RECENT -> if (active) Icons.Rounded.History else Icons.Outlined.History
-    RailFolder.MEDIA -> if (active) Icons.Rounded.PlayCircle else Icons.Outlined.PlayCircle
-    RailFolder.PRODUCTIVITY -> if (active) Icons.Rounded.Work else Icons.Outlined.Work
-    RailFolder.AI -> if (active) Icons.Rounded.AutoAwesome else Icons.Outlined.AutoAwesome
-    RailFolder.TOOLS -> if (active) Icons.Rounded.Build else Icons.Outlined.Build
-}
-
 @Composable
 private fun FolderRail(
-    selected: RailFolder,
+    folders: List<RailFolderConfig>,
+    selected: String,
     drawerShown: Boolean,
     mirror: Boolean,
     motion: RailMotion,
     drawerSize: DrawerSize,
-    onFolder: (RailFolder) -> Unit,
+    onFolder: (String) -> Unit,
     onSettings: () -> Unit,
 ) {
-    val folders = RailFolder.entries
     // One neck that glides between buttons with the anchor, and grows/shrinks
     // as the drawer opens/closes.
     val neck by animateFloatAsState(
@@ -760,18 +765,18 @@ private fun FolderRail(
         verticalArrangement = Arrangement.spacedBy(Rail.ItemGap, Alignment.Bottom),
     ) {
         folders.forEach { f ->
-            val active = drawerShown && f == selected
+            val active = drawerShown && f.id == selected
             val tint by animateColorAsState(
                 if (active) Rail.Accent else Rail.TextSecondary,
                 tween(Rail.SWITCH_MS, easing = Rail.SwitchEasing),
                 label = "folderTint",
             )
             RailButton(
-                icon = f.icon(active),
+                icon = RailIcons.get(f.icon).let { if (active) it.filled else it.outlined },
                 tint = tint,
                 pressColor = null,
                 description = f.title,
-                onClick = { onFolder(f) },
+                onClick = { onFolder(f.id) },
             )
         }
         Box(
@@ -928,8 +933,7 @@ private object StackFirstSizes : MeasurePolicy {
 /** One folder's title and groups, bottom-aligned near the thumb. */
 @Composable
 private fun FolderContent(
-    folder: RailFolder,
-    groups: List<RailGroup>,
+    folder: RailFolderConfig,
     recents: List<String>,
     appMap: Map<String, AppInfo>,
     interactive: Boolean,
@@ -964,7 +968,8 @@ private fun FolderContent(
                 .verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {
-            if (folder == RailFolder.RECENT) {
+            val groups = folder.groups
+            if (folder.recent) {
                 GroupSection(
                     title = groups.firstOrNull()?.title ?: "Today",
                     apps = recents.mapNotNull { appMap[it] },

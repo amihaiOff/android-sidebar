@@ -149,7 +149,7 @@ object AppRepository {
                 item.packageName?.let { add(it) }
                 addAll(item.packages)
             }
-            Design.RAIL -> config.rail.groups.values.forEach { groups -> groups.forEach { addAll(it.packages) } }
+            Design.RAIL -> config.rail.folders.forEach { f -> f.groups.forEach { addAll(it.packages) } }
         }
         addAll(recents)
     }

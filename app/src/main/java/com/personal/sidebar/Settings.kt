@@ -42,11 +42,13 @@ object Settings {
         // show the backdrop blur). The slider produces arbitrary floats, so an
         // exact 0.85 can only be that old untouched default — nudge it to the
         // new frosty default so existing installs get the lighter look.
-        return if (cfg.panel.opacity == 0.85f) {
+        val panelFixed = if (cfg.panel.opacity == 0.85f) {
             cfg.copy(panel = cfg.panel.copy(opacity = 0.6f))
         } else {
             cfg
         }
+        // Configs from before rail folders were editable store them differently.
+        return panelFixed.copy(rail = panelFixed.rail.migrated())
     }
 
     fun setConfig(context: Context, config: SidebarConfig) {

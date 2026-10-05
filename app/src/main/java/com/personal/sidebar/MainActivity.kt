@@ -76,7 +76,7 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.personal.sidebar.model.Design
 import com.personal.sidebar.model.HandleConfig
 import com.personal.sidebar.model.RailConfig
-import com.personal.sidebar.model.RailFolder
+import com.personal.sidebar.model.RailFolderConfig
 import com.personal.sidebar.model.ItemType
 import com.personal.sidebar.model.SidebarConfig
 import com.personal.sidebar.model.SidebarItem
@@ -91,7 +91,8 @@ private sealed interface Screen {
     data object GlassLab : Screen
     data class FolderEdit(val index: Int?, val isGroup: Boolean = false) : Screen
     data class LinkEdit(val index: Int?) : Screen
-    data class RailGroupEdit(val folder: RailFolder, val groupId: String?) : Screen
+    data class RailGroupEdit(val folderId: String, val groupId: String?) : Screen
+    data class RailFolderEdit(val folderId: String?) : Screen
 }
 
 class MainActivity : ComponentActivity() {
@@ -158,7 +159,8 @@ private fun SidebarRoot() {
                 onOpenGlassLab = { screen = Screen.GlassLab },
                 onRailChange = { persist(config.copy(rail = it)) },
                 onRailGroupsChange = { commit(config.copy(rail = it)) },
-                onEditRailGroup = { folder, id -> screen = Screen.RailGroupEdit(folder, id) },
+                onEditRailGroup = { folderId, id -> screen = Screen.RailGroupEdit(folderId, id) },
+                onEditRailFolder = { folderId -> screen = Screen.RailFolderEdit(folderId) },
                 onEditFolder = { index -> screen = Screen.FolderEdit(index) },
                 onEditLink = { index -> screen = Screen.LinkEdit(index) },
                 onRemoveItem = { index ->
@@ -208,27 +210,51 @@ private fun SidebarRoot() {
             }
 
             is Screen.RailGroupEdit -> {
-                val groups = config.rail.groupsOf(s.folder)
-                val existing = s.groupId?.let { id -> groups.firstOrNull { it.id == id } }
-                RailGroupEditScreen(
+                val folder = config.rail.folder(s.folderId)
+                if (folder == null) {
+                    LaunchedEffect(Unit) { screen = Screen.Home } // folder was deleted
+                } else {
+                    val groups = folder.groups
+                    val existing = s.groupId?.let { id -> groups.firstOrNull { it.id == id } }
+                    RailGroupEditScreen(
+                        modifier = mod,
+                        folder = folder,
+                        existing = existing,
+                        onSave = { group ->
+                            val list = if (groups.any { it.id == group.id }) {
+                                groups.map { if (it.id == group.id) group else it }
+                            } else {
+                                groups + group
+                            }
+                            commit(config.copy(rail = config.rail.withGroups(folder.id, list)))
+                            screen = Screen.Home
+                        },
+                        onDelete = if (existing != null && !folder.recent) {
+                            {
+                                commit(config.copy(rail = config.rail.withGroups(folder.id, groups - existing)))
+                                screen = Screen.Home
+                            }
+                        } else null,
+                        onCancel = { screen = Screen.Home },
+                    )
+                }
+            }
+
+            is Screen.RailFolderEdit -> {
+                val existing = s.folderId?.let { config.rail.folder(it) }
+                RailFolderEditScreen(
                     modifier = mod,
-                    folder = s.folder,
                     existing = existing,
-                    onSave = { group ->
-                        val list = if (groups.any { it.id == group.id }) {
-                            groups.map { if (it.id == group.id) group else it }
+                    onSave = { title, icon ->
+                        val rail = config.rail
+                        val updated = if (existing != null) {
+                            rail.withFolder(existing.copy(title = title, icon = icon))
                         } else {
-                            groups + group
+                            rail.copy(folders = rail.folders + RailFolderConfig(java.util.UUID.randomUUID().toString(), title, icon))
                         }
-                        commit(config.copy(rail = config.rail.withGroups(s.folder, list)))
+                        commit(config.copy(rail = updated))
                         screen = Screen.Home
                     },
-                    onDelete = if (existing != null && s.folder != RailFolder.RECENT) {
-                        {
-                            commit(config.copy(rail = config.rail.withGroups(s.folder, groups - existing)))
-                            screen = Screen.Home
-                        }
-                    } else null,
                     onCancel = { screen = Screen.Home },
                 )
             }
@@ -270,7 +296,8 @@ private fun HomeScreen(
     onOpenGlassLab: () -> Unit,
     onRailChange: (RailConfig) -> Unit,
     onRailGroupsChange: (RailConfig) -> Unit,
-    onEditRailGroup: (RailFolder, String?) -> Unit,
+    onEditRailGroup: (String, String?) -> Unit,
+    onEditRailFolder: (String?) -> Unit,
     onEditFolder: (Int) -> Unit,
     onEditLink: (Int) -> Unit,
     onRemoveItem: (Int) -> Unit,
@@ -414,7 +441,7 @@ private fun HomeScreen(
                 RailLookCard(config.rail, config.handle.verticalBias, onRailChange)
                 Spacer(Modifier.height(8.dp))
                 SectionTitle("Folders & groups")
-                RailFoldersSection(config.rail, rememberAppMap(), onRailGroupsChange, onEditRailGroup)
+                RailFoldersSection(config.rail, rememberAppMap(), onRailGroupsChange, onEditRailFolder, onEditRailGroup)
             }
         }
 

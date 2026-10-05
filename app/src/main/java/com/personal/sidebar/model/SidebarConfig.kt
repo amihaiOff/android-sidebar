@@ -170,14 +170,17 @@ enum class Design {
     RAIL,
 }
 
-/** The fixed folders on the rail, top to bottom. */
+/**
+ * The five folders the rail had before folders became editable. Only used to
+ * read configs saved by those builds (see [RailConfig.migrated]).
+ */
 @Serializable
-enum class RailFolder(val title: String) {
-    RECENT("Recent"),
-    MEDIA("Media"),
-    PRODUCTIVITY("Productivity"),
-    AI("AI"),
-    TOOLS("Tools"),
+enum class RailFolder(val title: String, val icon: String) {
+    RECENT("Recent", "history"),
+    MEDIA("Media", "play"),
+    PRODUCTIVITY("Productivity", "work"),
+    AI("AI", "ai"),
+    TOOLS("Tools", "build"),
 }
 
 /** A titled set of apps inside a rail folder. */
@@ -186,6 +189,18 @@ data class RailGroup(
     val id: String,
     val title: String,
     val packages: List<String> = emptyList(),
+)
+
+/** A folder on the rail: a button with an icon, and a drawer of groups. */
+@Serializable
+data class RailFolderConfig(
+    val id: String,
+    val title: String,
+    /** Icon key (see the rail's icon set). */
+    val icon: String = "folder",
+    /** Filled automatically with recent apps; only its first group's title is used. */
+    val recent: Boolean = false,
+    val groups: List<RailGroup> = emptyList(),
 )
 
 /** Settings + content of the [Design.RAIL] panel. */
@@ -207,48 +222,91 @@ data class RailConfig(
     /** Where the rail sits vertically: 0 = top .. 1 = bottom of the screen.
      *  Null = level with the edge handle. */
     val positionBias: Float? = null,
-    /** Folder the drawer opens on; remembers the last one picked. */
-    val selected: RailFolder = RailFolder.AI,
-    /** Groups per folder. [RailFolder.RECENT] uses only its first group's title;
-     *  its apps come from recents. */
-    val groups: Map<RailFolder, List<RailGroup>> = defaultRailGroups(),
+    /** The rail's folders, top to bottom. */
+    val folders: List<RailFolderConfig> = defaultRailFolders(),
+    /** Id of the folder the drawer opens on; remembers the last one picked. */
+    val selectedFolder: String = "ai",
+    /** Pre-editable-folders data (old keys); converted by [migrated]. */
+    @SerialName("groups")
+    val legacyGroups: Map<RailFolder, List<RailGroup>>? = null,
+    @SerialName("selected")
+    val legacySelected: RailFolder? = null,
 ) {
-    fun groupsOf(folder: RailFolder): List<RailGroup> = groups[folder].orEmpty()
+    /** Converts a config saved with the old fixed folders, keeping its groups. */
+    fun migrated(): RailConfig {
+        val old = legacyGroups ?: return if (folders.isEmpty()) copy(folders = defaultRailFolders()) else this
+        return copy(
+            folders = RailFolder.entries.map { f ->
+                RailFolderConfig(
+                    id = f.name.lowercase(),
+                    title = f.title,
+                    icon = f.icon,
+                    recent = f == RailFolder.RECENT,
+                    groups = old[f].orEmpty(),
+                )
+            },
+            selectedFolder = (legacySelected ?: RailFolder.AI).name.lowercase(),
+            legacyGroups = null,
+            legacySelected = null,
+        )
+    }
 
-    fun withGroups(folder: RailFolder, list: List<RailGroup>): RailConfig =
-        copy(groups = groups + (folder to list))
+    fun folder(id: String?): RailFolderConfig? = folders.firstOrNull { it.id == id }
+
+    /** The folder to open on: the remembered one, else the first. */
+    fun openingFolder(): RailFolderConfig? = folder(selectedFolder) ?: folders.firstOrNull()
+
+    fun withFolder(folder: RailFolderConfig): RailConfig =
+        copy(folders = folders.map { if (it.id == folder.id) folder else it })
+
+    fun withGroups(folderId: String, list: List<RailGroup>): RailConfig =
+        copy(folders = folders.map { if (it.id == folderId) it.copy(groups = list) else it })
 
     companion object {
         const val ICON_MIN = 40
         const val ICON_MAX = 80
+        /** The rail grows by a button per folder; past this it'd crowd the screen. */
+        const val MAX_FOLDERS = 8
     }
 }
 
-/** Starter groups from the design hand-off. Packages that aren't installed are
- *  simply not shown until they are. */
-fun defaultRailGroups(): Map<RailFolder, List<RailGroup>> = mapOf(
-    RailFolder.RECENT to listOf(RailGroup("recent-today", "Today")),
-    RailFolder.MEDIA to listOf(
-        RailGroup("media-watch", "Watch", listOf("com.google.android.youtube")),
-        RailGroup("media-browse", "Browse & chat", listOf("com.vivaldi.browser", "com.whatsapp")),
-    ),
-    RailFolder.PRODUCTIVITY to listOf(
-        RailGroup(
-            "prod-work", "Work",
-            listOf("com.Slack", "com.google.android.gm", "com.google.android.calendar", "com.samsung.android.calendar"),
+/** Starter folders and groups from the design hand-off. Packages that aren't
+ *  installed are simply not shown until they are. */
+fun defaultRailFolders(): List<RailFolderConfig> = listOf(
+    RailFolderConfig("recent", "Recent", "history", recent = true, groups = listOf(RailGroup("recent-today", "Today"))),
+    RailFolderConfig(
+        "media", "Media", "play",
+        groups = listOf(
+            RailGroup("media-watch", "Watch", listOf("com.google.android.youtube")),
+            RailGroup("media-browse", "Browse & chat", listOf("com.vivaldi.browser", "com.whatsapp")),
         ),
-        RailGroup("prod-docs", "Docs", listOf("com.google.android.apps.docs", "notion.id")),
     ),
-    RailFolder.AI to listOf(
-        RailGroup(
-            "ai-assistants", "Assistants",
-            listOf("com.openai.chatgpt", "com.google.android.apps.bard", "com.anthropic.claude"),
+    RailFolderConfig(
+        "productivity", "Productivity", "work",
+        groups = listOf(
+            RailGroup(
+                "prod-work", "Work",
+                listOf("com.Slack", "com.google.android.gm", "com.google.android.calendar", "com.samsung.android.calendar"),
+            ),
+            RailGroup("prod-docs", "Docs", listOf("com.google.android.apps.docs", "notion.id")),
         ),
-        RailGroup("ai-search", "Search", listOf("ai.perplexity.app.android")),
     ),
-    RailFolder.TOOLS to listOf(
-        RailGroup("tools-system", "System", listOf("com.android.settings", "com.android.vending")),
-        RailGroup("tools-install", "Install", listOf("dev.imranr.obtainium")),
+    RailFolderConfig(
+        "ai", "AI", "ai",
+        groups = listOf(
+            RailGroup(
+                "ai-assistants", "Assistants",
+                listOf("com.openai.chatgpt", "com.google.android.apps.bard", "com.anthropic.claude"),
+            ),
+            RailGroup("ai-search", "Search", listOf("ai.perplexity.app.android")),
+        ),
+    ),
+    RailFolderConfig(
+        "tools", "Tools", "build",
+        groups = listOf(
+            RailGroup("tools-system", "System", listOf("com.android.settings", "com.android.vending")),
+            RailGroup("tools-install", "Install", listOf("dev.imranr.obtainium")),
+        ),
     ),
 )
 
