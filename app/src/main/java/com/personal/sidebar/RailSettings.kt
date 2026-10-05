@@ -63,11 +63,23 @@ internal fun RailLookCard(rail: RailConfig, onChange: (RailConfig) -> Unit) {
             SliderRow("Opacity", rail.opacity, 0.4f..1f, "${(rail.opacity * 100).roundToInt()}%") {
                 onChange(rail.copy(opacity = it))
             }
+            SliderRow(
+                "Icon size",
+                rail.iconDp.toFloat(),
+                RailConfig.ICON_MIN.toFloat()..RailConfig.ICON_MAX.toFloat(),
+                "${rail.iconDp} dp",
+            ) {
+                onChange(rail.copy(iconDp = it.roundToInt()))
+            }
+            Row(Modifier.fillMaxWidth().padding(top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                Text("Show app names", style = MaterialTheme.typography.labelLarge, modifier = Modifier.weight(1f))
+                Switch(checked = rail.showLabels, onCheckedChange = { onChange(rail.copy(showLabels = it)) })
+            }
             Row(Modifier.fillMaxWidth().padding(top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
                     Text("Themed icons", style = MaterialTheme.typography.labelLarge)
                     Text(
-                        "Warm monochrome icons. Off shows each app's own colours.",
+                        "Warm monochrome icons. Off shows the system's icons, including your icon theme.",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -86,12 +98,6 @@ internal fun RailFoldersSection(
     onChange: (RailConfig) -> Unit,
     onEditGroup: (RailFolder, String?) -> Unit,
 ) {
-    Text(
-        "Group titles can also be renamed right in the sidebar.",
-        style = MaterialTheme.typography.bodySmall,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
-        modifier = Modifier.padding(start = 2.dp, top = 2.dp),
-    )
     RailFolder.entries.forEach { folder ->
         val groups = rail.groupsOf(folder)
         Card(Modifier.fillMaxWidth().padding(vertical = 6.dp)) {

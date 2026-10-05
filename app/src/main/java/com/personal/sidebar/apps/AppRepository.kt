@@ -2,7 +2,10 @@ package com.personal.sidebar.apps
 
 import android.content.Context
 import android.content.Intent
+import android.content.pm.LauncherActivityInfo
+import android.content.pm.LauncherApps
 import android.content.pm.PackageManager
+import android.os.Process
 import android.graphics.drawable.Drawable
 import com.personal.sidebar.Settings
 import com.personal.sidebar.model.Design
@@ -95,7 +98,7 @@ object AppRepository {
             val result = LinkedHashMap<String, AppInfo>()
             for (pkg in packages) {
                 if (pkg in result) continue
-                val info = infoCache[pkg] ?: loadOne(pm, pkg)?.also { infoCache[pkg] = it }
+                val info = infoCache[pkg] ?: loadOne(context, pm, pkg)?.also { infoCache[pkg] = it }
                 if (info != null) result[pkg] = info
             }
             result
@@ -149,7 +152,20 @@ object AppRepository {
     /** The most recents any design shows. */
     const val MAX_PANEL_RECENTS = 6
 
-    private fun loadOne(pm: PackageManager, pkg: String): AppInfo? {
+    /**
+     * The app's launcher entry as launchers see it. Its icon is what the home
+     * screen shows, so system icon themes (e.g. Samsung Galaxy Themes / Theme
+     * Park icon packs) apply to the sidebar too.
+     */
+    private fun launcherInfo(context: Context, pkg: String?): List<LauncherActivityInfo> = runCatching {
+        context.getSystemService(LauncherApps::class.java).getActivityList(pkg, Process.myUserHandle())
+    }.getOrDefault(emptyList())
+
+    private fun LauncherActivityInfo.toAppInfo() =
+        AppInfo(label.toString(), applicationInfo.packageName, getIcon(0))
+
+    private fun loadOne(context: Context, pm: PackageManager, pkg: String): AppInfo? {
+        launcherInfo(context, pkg).firstOrNull()?.let { return runCatching { it.toAppInfo() }.getOrNull() }
         val launch = pm.getLaunchIntentForPackage(pkg) ?: return null
         val cmp = launch.component
         return runCatching {
@@ -174,7 +190,15 @@ object AppRepository {
         val self = context.packageName
         val byPackage = LinkedHashMap<String, AppInfo>()
 
-        // Primary path: everything with a launcher entry.
+        // Primary path: launcher entries as the home screen sees them (icons
+        // include any system icon theme).
+        for (info in launcherInfo(context, null)) {
+            val pkg = info.applicationInfo.packageName
+            if (pkg == self || byPackage.containsKey(pkg)) continue
+            runCatching { byPackage[pkg] = info.toAppInfo() }
+        }
+
+        // Anything else with a launcher entry.
         val intent = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER)
         for (ri in pm.queryIntentActivities(intent, 0)) {
             val pkg = ri.activityInfo?.packageName ?: continue

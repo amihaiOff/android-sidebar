@@ -15,10 +15,31 @@ import kotlinx.coroutines.launch
 
 class SidebarApp : Application() {
 
+    /**
+     * A system theme / icon pack change arrives as a configuration change. Drop
+     * the cached icons and re-warm, so the sidebar shows the new icons.
+     */
+    private var lastConfig: android.content.res.Configuration? = null
+
+    override fun onConfigurationChanged(newConfig: android.content.res.Configuration) {
+        super.onConfigurationChanged(newConfig)
+        val diff = lastConfig?.diff(newConfig) ?: 0
+        lastConfig = android.content.res.Configuration(newConfig)
+        // Only theme-ish changes: resource overlays (icon packs; the hidden
+        // ActivityInfo.CONFIG_ASSETS_PATHS bit) or day/night. Folding, unfolding
+        // and rotating keep the cached icons.
+        if ((diff and (CONFIG_ASSETS_PATHS or android.content.pm.ActivityInfo.CONFIG_UI_MODE)) == 0) return
+        AppRepository.invalidate()
+        if (Settings.enabled(this)) {
+            scope.launch { runCatching { AppRepository.warm(this@SidebarApp, Settings.config(this@SidebarApp)) } }
+        }
+    }
+
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
     override fun onCreate() {
         super.onCreate()
+        lastConfig = android.content.res.Configuration(resources.configuration)
         val channel = NotificationChannel(
             CHANNEL_ID,
             getString(R.string.notif_channel_name),
@@ -64,6 +85,9 @@ class SidebarApp : Application() {
     }
 
     companion object {
+        /** ActivityInfo.CONFIG_ASSETS_PATHS (hidden API constant). */
+        private const val CONFIG_ASSETS_PATHS = 0x80000000.toInt()
+
         const val CHANNEL_ID = "sidebar_handle"
     }
 }

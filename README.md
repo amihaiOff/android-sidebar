@@ -40,9 +40,12 @@ match.
   **groups** of apps, kept low near your thumb. The selected folder is joined
   to the drawer by a "neck", and the drawer opens and closes with a genie-style
   pinch into the button. Recent fills itself from your recent apps; the other
-  folders' groups (title + apps) are edited in settings, and group titles can
-  also be renamed inline in the drawer. Settings: overall opacity (40–100%) and
-  themed (warm monochrome) icons. The scrim, back or an app launch closes it.
+  folders' groups (title + apps) are edited in settings. Switching folders
+  keeps the drawer open: the neck glides to the new button, the drawer resizes
+  and the contents cross-fade. Settings: overall opacity (40–100%), icon size,
+  app names on/off, and themed (warm monochrome) icons — off by default, which
+  shows the system's own icons, including a Galaxy Themes / Theme Park icon
+  pack. The scrim, back or an app launch closes it.
 
 The edge handle (side, colour, size, position) is shared by both designs.
 

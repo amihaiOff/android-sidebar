@@ -206,10 +206,6 @@ class PanelController(private val context: Context) {
         // The panel covers the whole window and handles scrim taps itself.
         d.setCanceledOnTouchOutside(false)
         window.setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
-        // Group titles are editable inline. With edge-to-edge the window isn't
-        // actually resized; the panel reads the IME inset and lifts itself.
-        @Suppress("DEPRECATION")
-        window.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE)
         val lp = window.attributes
         lp.width = WindowManager.LayoutParams.MATCH_PARENT
         lp.height = WindowManager.LayoutParams.MATCH_PARENT

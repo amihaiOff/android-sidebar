@@ -115,7 +115,7 @@ private fun SidebarRoot() {
         if (running && Permissions.canDrawOverlays(context)) SidebarService.start(context)
     }
 
-    // The panel can change the config too (rail group titles, last folder), and
+    // The panel can change the config too (the rail's last folder), and
     // it opens as an overlay that takes focus without pausing us. Re-read the
     // config whenever the window regains focus on Home, so later edits here
     // don't write a stale copy over the panel's. Sub-screens are left alone:

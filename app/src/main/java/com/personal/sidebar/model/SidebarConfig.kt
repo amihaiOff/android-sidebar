@@ -193,8 +193,14 @@ data class RailGroup(
 data class RailConfig(
     /** Opacity of the whole rail + drawer, 0.4..1. */
     val opacity: Float = 0.88f,
-    /** Warm monochrome icons on a tinted tile instead of each app's own colours. */
-    val themedIcons: Boolean = true,
+    /** Warm monochrome icons on a tinted tile. Off (default) = the system's own
+     *  icons, including any icon theme. (New key: earlier builds defaulted on.) */
+    @SerialName("themedIcons2")
+    val themedIcons: Boolean = false,
+    /** Show app names under the icons. */
+    val showLabels: Boolean = true,
+    /** App icon size in the drawer, in dp ([ICON_MIN]..[ICON_MAX]). */
+    val iconDp: Int = 60,
     /** Folder the drawer opens on; remembers the last one picked. */
     val selected: RailFolder = RailFolder.AI,
     /** Groups per folder. [RailFolder.RECENT] uses only its first group's title;
@@ -205,6 +211,11 @@ data class RailConfig(
 
     fun withGroups(folder: RailFolder, list: List<RailGroup>): RailConfig =
         copy(groups = groups + (folder to list))
+
+    companion object {
+        const val ICON_MIN = 40
+        const val ICON_MAX = 80
+    }
 }
 
 /** Starter groups from the design hand-off. Packages that aren't installed are
