@@ -948,9 +948,6 @@ private fun FolderContent(
             .fillMaxSize()
             .padding(start = 16.dp, end = 16.dp, top = 22.dp, bottom = 18.dp),
     ) {
-        // Any extra height (the drawer reaching up to the selected button) goes
-        // above the title, so the title stays right over its groups.
-        Spacer(Modifier.weight(1f))
         Text(
             text = folder.title,
             color = Rail.TextPrimary,
@@ -996,6 +993,9 @@ private fun FolderContent(
                 if (groups.isEmpty()) EmptyCell(interactive, cell, onAddApps)
             }
         }
+        // Contents sit at the top; any extra height (the drawer reaching up to
+        // the selected button) is left empty at the bottom.
+        Spacer(Modifier.weight(1f))
     }
 }
 
