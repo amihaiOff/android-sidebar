@@ -41,18 +41,21 @@ class SidebarService : Service() {
         edgeHandle = EdgeHandle(this) {
             if (!panel.isShowing) panel.show(Settings.config(this))
         }
-        edgeHandle.show(Settings.config(this).handle)
+        showHandle()
         // Pre-resolve the panel's icons now so the first open is instant instead
         // of showing the loading spinner while it enumerates apps.
         warm()
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        if (intent?.action == ACTION_REFRESH) {
-            // Config changed while running: re-place the handle, drop any open panel.
-            panel.hide()
-            edgeHandle.show(Settings.config(this).handle)
-            warm() // curated set may have changed — re-warm for an instant open
+        when (intent?.action) {
+            ACTION_REFRESH -> {
+                // Config changed while running: re-place the handle, drop any open panel.
+                panel.hide()
+                showHandle()
+                warm() // curated set may have changed — re-warm for an instant open
+            }
+            ACTION_SHOW_PANEL -> if (!panel.isShowing) panel.show(Settings.config(this))
         }
         return START_STICKY
     }
@@ -62,6 +65,12 @@ class SidebarService : Service() {
         if (::edgeHandle.isInitialized) edgeHandle.hide()
         scope.cancel()
         super.onDestroy()
+    }
+
+    /** Shows the edge handle, unless the user opens the sidebar only via gestures. */
+    private fun showHandle() {
+        val handle = Settings.config(this).handle
+        if (handle.visible) edgeHandle.show(handle) else edgeHandle.hide()
     }
 
     private fun warm() {
@@ -107,6 +116,7 @@ class SidebarService : Service() {
     companion object {
         private const val NOTIFICATION_ID = 42
         const val ACTION_REFRESH = "com.personal.sidebar.REFRESH"
+        const val ACTION_SHOW_PANEL = "com.personal.sidebar.SHOW_PANEL"
 
         fun start(context: Context) {
             // May throw if the OS blocks starting a foreground service from the
@@ -120,6 +130,16 @@ class SidebarService : Service() {
 
         fun stop(context: Context) {
             context.stopService(Intent(context, SidebarService::class.java))
+        }
+
+        /** Open the panel now (from [com.personal.sidebar.ShowSidebarActivity]). */
+        fun showPanel(context: Context) {
+            runCatching {
+                ContextCompat.startForegroundService(
+                    context,
+                    Intent(context, SidebarService::class.java).setAction(ACTION_SHOW_PANEL),
+                )
+            }
         }
 
         /** Re-read config and re-place the handle (call after any settings change). */

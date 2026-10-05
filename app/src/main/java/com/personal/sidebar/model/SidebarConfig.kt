@@ -48,6 +48,9 @@ data class SidebarItem(
 /** Appearance + placement of the edge handle. */
 @Serializable
 data class HandleConfig(
+    /** Show the handle. Off = open the sidebar only via the "Open sidebar"
+     *  entry (gesture apps, shortcuts). */
+    val visible: Boolean = true,
     val edge: Edge = Edge.RIGHT,
     /** Packed ARGB color of the handle pill. */
     val colorArgb: Int = DEFAULT_COLOR,

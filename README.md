@@ -46,6 +46,15 @@ match.
 
 The edge handle (side, colour, size, position) is shared by both designs.
 
+### Opening with a gesture
+
+Besides the edge handle, the sidebar can be opened by an **"Open sidebar"**
+entry in the app list — an invisible activity that just shows the panel. Point
+a gesture app at it, e.g. Good Lock → **One Hand Operation+** → gesture action
+*Open app* → **Open sidebar**. It's also an app shortcut (long-press the
+Sidebar icon). Settings can hide the entry from the app list, and can hide the
+edge handle if you only use gestures.
+
 ## Customizing (Glass design)
 
 Everything is configured from the app's home screen and applies live (the

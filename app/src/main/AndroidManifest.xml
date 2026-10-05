@@ -55,7 +55,40 @@
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
+            <meta-data
+                android:name="android.app.shortcuts"
+                android:resource="@xml/shortcuts" />
         </activity>
+
+        <!-- Invisible: opens the panel and finishes. Target for gesture apps
+             and the "Open sidebar" shortcut. -->
+        <activity
+            android:name=".ShowSidebarActivity"
+            android:exported="true"
+            android:excludeFromRecents="true"
+            android:noHistory="true"
+            android:taskAffinity=""
+            android:label="@string/open_sidebar"
+            android:theme="@android:style/Theme.NoDisplay">
+            <intent-filter>
+                <action android:name="com.personal.sidebar.SHOW_PANEL" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+        </activity>
+
+        <!-- The same, as its own entry in the app list, so apps that can only
+             "open an app" (e.g. One Hand Operation+) can pick it. Can be hidden
+             from settings. -->
+        <activity-alias
+            android:name=".OpenSidebarLauncher"
+            android:exported="true"
+            android:label="@string/open_sidebar"
+            android:targetActivity=".ShowSidebarActivity">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity-alias>
 
         <service
             android:name=".service.SidebarService"

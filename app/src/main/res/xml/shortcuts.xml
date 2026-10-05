@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Long-press the app icon (or pick it in a gesture app's "Shortcut" action)
+     to open the sidebar panel directly. -->
+<shortcuts xmlns:android="http://schemas.android.com/apk/res/android">
+    <shortcut
+        android:shortcutId="open_sidebar"
+        android:enabled="true"
+        android:icon="@mipmap/ic_launcher"
+        android:shortcutShortLabel="@string/open_sidebar"
+        android:shortcutLongLabel="@string/open_sidebar">
+        <intent
+            android:action="com.personal.sidebar.SHOW_PANEL"
+            android:targetPackage="com.personal.sidebar"
+            android:targetClass="com.personal.sidebar.ShowSidebarActivity" />
+    </shortcut>
+</shortcuts>

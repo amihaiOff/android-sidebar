@@ -341,6 +341,17 @@ private fun HomeScreen(
         SectionTitle("Edge handle")
         Card(Modifier.fillMaxWidth().padding(vertical = 6.dp)) {
             Column(Modifier.padding(16.dp)) {
+                Row(Modifier.fillMaxWidth().padding(bottom = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f)) {
+                        Text("Show edge handle", style = MaterialTheme.typography.labelLarge)
+                        Text(
+                            "Turn off to open the sidebar only with a gesture app or shortcut. The side still sets where the panel opens.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                    Switch(checked = handle.visible, onCheckedChange = { setHandle(handle.copy(visible = it)) })
+                }
                 HandlePreview(handle)
                 Spacer(Modifier.height(16.dp))
 
@@ -377,6 +388,11 @@ private fun HomeScreen(
                 }
             }
         }
+
+        // --- Opening from gesture apps / shortcuts -------------------------------
+        Spacer(Modifier.height(8.dp))
+        SectionTitle("Gestures & shortcuts")
+        OpenSidebarCard()
 
         // --- Design-specific settings ------------------------------------------
         when (config.design) {
@@ -415,6 +431,34 @@ private fun HomeScreen(
                     )
                 }
                 Switch(checked = running, enabled = overlayGranted, onCheckedChange = onRunningChange)
+            }
+        }
+    }
+}
+
+/**
+ * Explains the "Open sidebar" entry (for gesture apps like One Hand Operation+)
+ * and lets the user hide it from the app list.
+ */
+@Composable
+private fun OpenSidebarCard() {
+    val context = LocalContext.current
+    var shown by remember { mutableStateOf(ShowSidebarActivity.launcherEntryShown(context)) }
+    Card(Modifier.fillMaxWidth().padding(vertical = 6.dp)) {
+        Column(Modifier.padding(16.dp)) {
+            Text(
+                "To open the sidebar with a gesture (e.g. Good Lock → One Hand Operation+), set the gesture's " +
+                    "action to open the app \"Open sidebar\". It opens the panel directly instead of these settings. " +
+                    "It's also a shortcut when you long-press the Sidebar icon.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Row(Modifier.fillMaxWidth().padding(top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                Text("\"Open sidebar\" in app list", style = MaterialTheme.typography.labelLarge, modifier = Modifier.weight(1f))
+                Switch(checked = shown, onCheckedChange = {
+                    ShowSidebarActivity.setLauncherEntryShown(context, it)
+                    shown = it
+                })
             }
         }
     }
