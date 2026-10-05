@@ -166,20 +166,20 @@ object AppRepository {
         context.getSystemService(LauncherApps::class.java).getActivityList(pkg, Process.myUserHandle())
     }.getOrDefault(emptyList())
 
-    private fun LauncherActivityInfo.toAppInfo() =
-        AppInfo(label.toString(), applicationInfo.packageName, getIcon(0))
+    private fun LauncherActivityInfo.toAppInfo(context: Context) =
+        AppInfo(label.toString(), applicationInfo.packageName, IconPacks.apply(context, componentName, getIcon(0)))
 
     private fun loadOne(context: Context, pm: PackageManager, pkg: String): AppInfo? {
-        launcherInfo(context, pkg).firstOrNull()?.let { return runCatching { it.toAppInfo() }.getOrNull() }
+        launcherInfo(context, pkg).firstOrNull()?.let { return runCatching { it.toAppInfo(context) }.getOrNull() }
         val launch = pm.getLaunchIntentForPackage(pkg) ?: return null
         val cmp = launch.component
         return runCatching {
             val activity = cmp?.let { pm.getActivityInfo(it, 0) }
             if (activity != null) {
-                AppInfo(activity.loadLabel(pm).toString(), pkg, activity.loadIcon(pm))
+                AppInfo(activity.loadLabel(pm).toString(), pkg, IconPacks.apply(context, cmp, activity.loadIcon(pm)))
             } else {
                 val app = pm.getApplicationInfo(pkg, 0)
-                AppInfo(app.loadLabel(pm).toString(), pkg, app.loadIcon(pm))
+                AppInfo(app.loadLabel(pm).toString(), pkg, IconPacks.apply(context, cmp, app.loadIcon(pm)))
             }
         }.getOrNull()
     }
@@ -189,6 +189,7 @@ object AppRepository {
         launchableCache = null
         infoCache.clear()
         com.personal.sidebar.ui.PanelIcons.clear()
+        IconPacks.invalidate()
     }
 
     private fun query(context: Context): List<AppInfo> {
@@ -201,7 +202,7 @@ object AppRepository {
         for (info in launcherInfo(context, null)) {
             val pkg = info.applicationInfo.packageName
             if (pkg == self || byPackage.containsKey(pkg)) continue
-            runCatching { byPackage[pkg] = info.toAppInfo() }
+            runCatching { byPackage[pkg] = info.toAppInfo(context) }
         }
 
         // Anything else with a launcher entry.
@@ -209,7 +210,8 @@ object AppRepository {
         for (ri in pm.queryIntentActivities(intent, 0)) {
             val pkg = ri.activityInfo?.packageName ?: continue
             if (pkg == self || byPackage.containsKey(pkg)) continue
-            byPackage[pkg] = AppInfo(ri.loadLabel(pm).toString(), pkg, ri.loadIcon(pm))
+            val cn = android.content.ComponentName(pkg, ri.activityInfo.name)
+            byPackage[pkg] = AppInfo(ri.loadLabel(pm).toString(), pkg, IconPacks.apply(context, cn, ri.loadIcon(pm)))
         }
 
         // Secondary path: installed packages that are launchable but the launcher
@@ -225,7 +227,7 @@ object AppRepository {
                 val icon = runCatching {
                     cmp?.let { pm.getActivityInfo(it, 0).loadIcon(pm) }
                 }.getOrNull() ?: info.loadIcon(pm)
-                byPackage[pkg] = AppInfo(label, pkg, icon)
+                byPackage[pkg] = AppInfo(label, pkg, IconPacks.apply(context, cmp, icon))
             }
         }
 

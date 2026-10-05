@@ -55,6 +55,11 @@ way the system launcher labels app drags, so the system's own split-screen drop
 zones take it (as on One UI); the sidebar closes once the app opens. It can be
 turned off in the rail settings.
 
+**Icon pack** (both designs): app icons come from the system by default
+(including Galaxy Themes icons), or from a third-party icon pack app (ADW / Nova
+format) picked in settings — launchers apply those themselves, so the sidebar
+reads the pack's `appfilter.xml` directly.
+
 The edge handle (side, colour, size, position) is shared by both designs.
 
 ### Opening with a gesture

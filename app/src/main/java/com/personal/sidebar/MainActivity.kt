@@ -8,6 +8,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -348,6 +349,15 @@ private fun HomeScreen(
         SectionTitle("Design")
         DesignPicker(config.design) { onConfigChange(config.copy(design = it)) }
 
+        // --- Icons (both designs) ------------------------------------------------
+        Spacer(Modifier.height(8.dp))
+        SectionTitle("Icon pack")
+        IconPackCard(config.iconPack) { pack ->
+            onConfigChange(config.copy(iconPack = pack))
+            // Re-resolve every icon with the new pack (the service re-warms them).
+            com.personal.sidebar.apps.AppRepository.invalidate()
+        }
+
         // --- Permissions -----------------------------------------------------
         PermissionCard("Draw over other apps", "Required. Shows the handle and panel on top.", overlayGranted) {
             if (!overlayGranted) Button(onClick = { context.startActivity(Permissions.overlaySettingsIntent(context)) }) { Text("Grant") }
@@ -488,6 +498,52 @@ private fun OpenSidebarCard() {
                 })
             }
         }
+    }
+}
+
+/**
+ * Pick where app icons come from: the system (including Galaxy Themes icons),
+ * or a third-party icon pack app — which launchers apply themselves, so the
+ * sidebar has to read it directly.
+ */
+@Composable
+private fun IconPackCard(selected: String?, onPick: (String?) -> Unit) {
+    val context = LocalContext.current
+    val packs = remember { com.personal.sidebar.apps.IconPacks.installed(context) }
+    Card(Modifier.fillMaxWidth().padding(vertical = 6.dp)) {
+        Column(Modifier.padding(vertical = 8.dp)) {
+            IconPackRow("System icons", selected == null) { onPick(null) }
+            packs.forEach { p -> IconPackRow(p.label, selected == p.packageName) { onPick(p.packageName) } }
+            if (packs.isEmpty()) {
+                Text(
+                    "No icon pack apps found. Packs from the Play Store (for Nova, Lawnchair and other launchers) show up here once installed.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+                )
+            } else if (selected != null && packs.none { it.packageName == selected }) {
+                Text(
+                    "The chosen icon pack isn't installed any more; system icons are used.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun IconPackRow(label: String, selected: Boolean, onClick: () -> Unit) {
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .padding(horizontal = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        RadioButton(selected = selected, onClick = onClick)
+        Text(label, style = MaterialTheme.typography.bodyLarge)
     }
 }
 

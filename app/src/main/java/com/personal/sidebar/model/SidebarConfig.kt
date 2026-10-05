@@ -224,8 +224,6 @@ data class RailConfig(
     val positionBias: Float? = null,
     /** The rail's folders, top to bottom. */
     val folders: List<RailFolderConfig> = defaultRailFolders(),
-    /** Id of the folder the drawer opens on; remembers the last one picked. */
-    val selectedFolder: String = "ai",
     /** Pre-editable-folders data (old keys); converted by [migrated]. */
     @SerialName("groups")
     val legacyGroups: Map<RailFolder, List<RailGroup>>? = null,
@@ -245,16 +243,12 @@ data class RailConfig(
                     groups = old[f].orEmpty(),
                 )
             },
-            selectedFolder = (legacySelected ?: RailFolder.AI).name.lowercase(),
             legacyGroups = null,
             legacySelected = null,
         )
     }
 
     fun folder(id: String?): RailFolderConfig? = folders.firstOrNull { it.id == id }
-
-    /** The folder to open on: the remembered one, else the first. */
-    fun openingFolder(): RailFolderConfig? = folder(selectedFolder) ?: folders.firstOrNull()
 
     fun withFolder(folder: RailFolderConfig): RailConfig =
         copy(folders = folders.map { if (it.id == folder.id) folder else it })
@@ -314,6 +308,8 @@ fun defaultRailFolders(): List<RailFolderConfig> = listOf(
 @Serializable
 data class SidebarConfig(
     val design: Design = Design.GLASS,
+    /** Package of a third-party icon pack to draw app icons from; null = system icons. */
+    val iconPack: String? = null,
     val rail: RailConfig = RailConfig(),
     val handle: HandleConfig = HandleConfig(),
     val panel: PanelConfig = PanelConfig(),

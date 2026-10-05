@@ -226,7 +226,6 @@ private class RailMotion(
     /** Folder ids, top to bottom. */
     private val folderIds: List<String>,
     initial: String,
-    private val onSelect: (String) -> Unit,
 ) {
     private val count = folderIds.size
     private fun indexOf(id: String) = folderIds.indexOf(id).coerceAtLeast(0)
@@ -283,7 +282,6 @@ private class RailMotion(
     private fun select(folder: String) {
         if (folder == selected) return
         selected = folder
-        onSelect(folder)
     }
 
     fun tap(folder: String) {
@@ -421,10 +419,8 @@ fun RailPanel(
     val folderById = remember(folders) { folders.associateBy { it.id } }
 
     val motion = remember {
-        val initial = rail.openingFolder()?.takeIf { it.id in folderIds }?.id ?: folderIds.first()
-        RailMotion(scope, folderIds, initial) { id ->
-            Settings.updateConfig(context) { it.copy(rail = it.rail.copy(selectedFolder = id)) }
-        }
+        // Always opens on the first folder (e.g. Favorites).
+        RailMotion(scope, folderIds, folderIds.first())
     }
     val dismiss = remember { { motion.dismiss(quick = false, onDone = onDismissed) } }
     val actions = remember { PanelActions(context) { motion.dismiss(quick = true, onDone = onDismissed) } }
