@@ -361,14 +361,10 @@ private data class CellStyle(
     val drag: ((AppInfo) -> DragAndDropTransferData?)? = null,
 )
 
-/** Where a dragged app would land. */
-private enum class SplitZone { SPLIT, CANCEL }
-
 /**
  * The platform's (hidden) "drag an app" clip type and its pending-intent extra,
- * as the system launcher sends them. Matching that form lets a system whose
- * split-screen drop targets accept app drags take the drop itself; otherwise
- * the sidebar's own full-screen target handles it.
+ * as the system launcher sends them. In that form the system's own split-screen
+ * drop targets accept the drag (as One UI does).
  */
 private const val MIMETYPE_APP_ACTIVITY = "application/vnd.android.activity"
 private const val EXTRA_PENDING_INTENT = "android.intent.extra.PENDING_INTENT"
@@ -447,16 +443,6 @@ fun RailPanel(
     val splitEnabled = rail.dragToSplit && largeScreen && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
     /** The app being dragged, while a drag is in progress. */
     var dragging by remember { mutableStateOf<String?>(null) }
-    var zone by remember { mutableStateOf<SplitZone?>(null) }
-    var dragStarted by remember { mutableStateOf(false) }
-    // If the system refused to start the drag, nothing else would reset it.
-    LaunchedEffect(dragging) {
-        if (dragging != null) {
-            delay(1000)
-            if (!dragStarted) { dragging = null; zone = null }
-        }
-    }
-    val dragFade by animateFloatAsState(if (dragging != null && zone != SplitZone.CANCEL) 0.3f else 1f, label = "dragFade")
 
     // Stable across recompositions, so the app cells don't all recompose.
     val cell = remember(rail, splitEnabled) {
@@ -466,11 +452,7 @@ fun RailPanel(
             themed = rail.themedIcons,
             drag = if (splitEnabled) { app ->
                 @Suppress("NewApi")
-                appDragData(context, app)?.also {
-                    dragging = app.packageName
-                    dragStarted = false
-                    zone = null
-                }
+                appDragData(context, app)?.also { dragging = app.packageName }
             } else null,
         )
     }
@@ -480,36 +462,15 @@ fun RailPanel(
         { app -> PanelIcons.get(app, iconPx, railIconTint(rail)) }
     }
 
-    // The rail + drawer bounds in root (= window, the panel fills it) coordinates,
-    // the same space as drag-event positions: dropping back on them cancels.
-    val sidebarBounds = remember { arrayOf(Rect.Zero) }
+    // The system's split-screen drop targets take the drop (they sit above this
+    // window). The sidebar only listens for the drag ending, to get out of the
+    // way once the app is opening; it never accepts the drop itself.
     val splitTarget = remember {
         object : DragAndDropTarget {
-            private var dropped = false
-            private fun zoneAt(e: DragAndDropEvent): SplitZone {
-                val slop = 24 * context.resources.displayMetrics.density
-                return if (sidebarBounds[0].inflate(slop).contains(e.toAndroidDragEvent().let { Offset(it.x, it.y) })) SplitZone.CANCEL else SplitZone.SPLIT
-            }
-            override fun onStarted(event: DragAndDropEvent) { dropped = false; dragStarted = true }
-            override fun onEntered(event: DragAndDropEvent) { zone = zoneAt(event) }
-            override fun onMoved(event: DragAndDropEvent) { zone = zoneAt(event) }
-            override fun onExited(event: DragAndDropEvent) { zone = null }
-            override fun onDrop(event: DragAndDropEvent): Boolean {
-                val pkg = dragging ?: return false
-                if (zoneAt(event) != SplitZone.SPLIT) return false
-                dropped = true
-                actions.launchAppSplit(pkg)
-                return true
-            }
+            override fun onDrop(event: DragAndDropEvent): Boolean = false
             override fun onEnded(event: DragAndDropEvent) {
-                // Taken by the system's own split-screen drop targets (which sit
-                // above this window): the app is opening, so get out of the way.
-                if (!dropped && event.toAndroidDragEvent().result) {
-                    motion.dismiss(quick = true, onDone = onDismissed)
-                }
+                if (event.toAndroidDragEvent().result) motion.dismiss(quick = true, onDone = onDismissed)
                 dragging = null
-                dragStarted = false
-                zone = null
             }
         }
     }
@@ -566,9 +527,6 @@ fun RailPanel(
         val bottomGap = (maxHeight - railBottom).coerceAtLeast(0.dp)
         val roomAbove = (railBottom - top).coerceAtLeast(railHeight)
 
-        // While dragging an app: where to drop it (behind the faded sidebar).
-        if (dragging != null) SplitDropHint(mirror = mirror, active = zone == SplitZone.SPLIT)
-
         CompositionLocalProvider(LocalDensity provides Density(density.density * scale, density.fontScale)) {
             val drawerSize = remember { DrawerSize() }
             val interactive by remember { derivedStateOf { motion.genie.value >= GENIE_OPEN } }
@@ -591,10 +549,9 @@ fun RailPanel(
                     )
                     // One layer for the whole group, so overlapping parts (neck
                     // over rail and drawer) don't show seams at partial opacity.
-                    .onGloballyPositioned { sidebarBounds[0] = it.boundsInRoot() }
                     .graphicsLayer {
                         val e = motion.enter.value
-                        alpha = rail.opacity.coerceIn(0.4f, 1f) * e * dragFade
+                        alpha = rail.opacity.coerceIn(0.4f, 1f) * e
                         translationX = (1f - e) * slide * (if (mirror) 1f else -1f)
                         compositingStrategy = CompositingStrategy.Offscreen
                     },
@@ -1180,38 +1137,6 @@ private fun EmptyCell(interactive: Boolean, cell: CellStyle, onClick: () -> Unit
             if (cell.showLabels) Text("Add apps", color = Rail.TextTertiary, fontSize = 13.sp, maxLines = 1)
         }
         Spacer(Modifier.weight(2f))
-    }
-}
-
-/**
- * Shown while an app is being dragged: a target over the half of the screen
- * away from the sidebar. Dropping anywhere outside the sidebar opens the app in
- * split screen (the system picks the side); dropping back on it cancels.
- */
-@Composable
-private fun SplitDropHint(mirror: Boolean, active: Boolean) {
-    val fill by animateColorAsState(
-        if (active) Rail.Accent.copy(alpha = 0.28f) else Rail.Surface.copy(alpha = 0.72f),
-        label = "splitFill",
-    )
-    Box(Modifier.fillMaxSize()) {
-        Box(
-            modifier = Modifier
-                .align(if (mirror) AbsoluteAlignment.CenterLeft else AbsoluteAlignment.CenterRight)
-                .fillMaxHeight()
-                .fillMaxWidth(0.5f)
-                .padding(16.dp)
-                .clip(RoundedCornerShape(28.dp))
-                .background(fill)
-                .border(2.dp, Rail.Accent.copy(alpha = if (active) 1f else 0.6f), RoundedCornerShape(28.dp)),
-            contentAlignment = Alignment.Center,
-        ) {
-            Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                Icon(Icons.Rounded.VerticalSplit, contentDescription = null, tint = Rail.Accent, modifier = Modifier.size(36.dp))
-                Text("Drop to open in split screen", color = Rail.TextPrimary, fontSize = 15.sp, fontWeight = FontWeight.Medium)
-                Text("Drop back on the sidebar to cancel", color = Rail.TextSecondary, fontSize = 13.sp)
-            }
-        }
     }
 }
 
