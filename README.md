@@ -49,7 +49,7 @@ match.
   pack. The screen behind isn't dimmed; tapping outside, back or an app launch
   closes it.
 
-On large screens (a foldable's inner screen), **long-press an app in the rail's
+On either screen, **long-press an app in the rail's
 drawer and drag it out** to open it in split screen. The drag is labelled the
 way the system launcher labels app drags, so the system's own split-screen drop
 zones take it where they appear; where they don't, dropping anywhere outside the

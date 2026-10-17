@@ -217,7 +217,7 @@ data class RailConfig(
     /** App icon size in the drawer, in dp ([ICON_MIN]..[ICON_MAX]). */
     val iconDp: Int = 60,
     /** Long-press and drag an app out of the drawer to open it in split screen
-     *  (large screens only, e.g. a foldable's inner screen). */
+     *  (on both of a foldable's screens). */
     val dragToSplit: Boolean = true,
     /** Where the rail sits vertically: 0 = top .. 1 = bottom of the screen.
      *  Null = level with the edge handle. */

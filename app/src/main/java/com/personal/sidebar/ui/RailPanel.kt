@@ -148,7 +148,6 @@ import androidx.compose.ui.draganddrop.mimeTypes
 import androidx.compose.ui.draganddrop.toAndroidDragEvent
 import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.ui.layout.onGloballyPositioned
-import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.unit.IntSize
 
 // ---- Design tokens (see the "Thumb rail" hand-off) --------------------------
@@ -449,9 +448,9 @@ fun RailPanel(
         if (map != appMap) appMap = map
     }
 
-    // Drag-to-split: only where split screen makes sense (large screens).
-    val largeScreen = LocalConfiguration.current.smallestScreenWidthDp >= 600
-    val splitEnabled = rail.dragToSplit && largeScreen && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
+    // Drag-to-split, on any screen size: One UI splits phone-sized screens too
+    // (e.g. a foldable's cover screen).
+    val splitEnabled = rail.dragToSplit && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
     /** The app being dragged, while a drag is in progress. */
     var dragging by remember { mutableStateOf<String?>(null) }
 
