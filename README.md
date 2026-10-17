@@ -52,8 +52,10 @@ match.
 On large screens (a foldable's inner screen), **long-press an app in the rail's
 drawer and drag it out** to open it in split screen. The drag is labelled the
 way the system launcher labels app drags, so the system's own split-screen drop
-zones take it (as on One UI); the sidebar closes once the app opens. It can be
-turned off in the rail settings.
+zones take it where they appear; where they don't, dropping anywhere outside the
+sidebar opens the app with `FLAG_ACTIVITY_LAUNCH_ADJACENT` (the system picks the
+side), and dropping back on the sidebar cancels. The sidebar closes once the app
+opens. It can be turned off in the rail settings.
 
 **Icon pack** (both designs): app icons come from the system by default
 (including Galaxy Themes icons), or from a third-party icon pack app (ADW / Nova

@@ -473,14 +473,29 @@ fun RailPanel(
         { app -> PanelIcons.get(app, iconPx, railIconTint(rail)) }
     }
 
-    // The system's split-screen drop targets take the drop (they sit above this
-    // window). The sidebar only listens for the drag ending, to get out of the
-    // way once the app is opening; it never accepts the drop itself.
+    // The rail + drawer bounds in root (= window, the panel fills it) coordinates,
+    // the same space as drag-event positions: dropping back on them cancels.
+    val sidebarBounds = remember { arrayOf(Rect.Zero) }
+    // Where the system's own split-screen drop zones show (they sit above this
+    // window), they take the drop and the sidebar just gets out of the way. When
+    // they don't (One UI doesn't always offer them for an overlay's drag), a drop
+    // anywhere outside the sidebar lands here and opens the app split itself.
     val splitTarget = remember {
         object : DragAndDropTarget {
-            override fun onDrop(event: DragAndDropEvent): Boolean = false
+            private var dropped = false
+            override fun onStarted(event: DragAndDropEvent) { dropped = false }
+            override fun onDrop(event: DragAndDropEvent): Boolean {
+                val pkg = dragging ?: return false
+                val e = event.toAndroidDragEvent()
+                val slop = 24 * context.resources.displayMetrics.density
+                if (sidebarBounds[0].inflate(slop).contains(Offset(e.x, e.y))) return false
+                dropped = true
+                actions.launchAppSplit(pkg)
+                return true
+            }
             override fun onEnded(event: DragAndDropEvent) {
-                if (event.toAndroidDragEvent().result) motion.dismiss(quick = true, onDone = onDismissed)
+                // Taken by the system's drop zones: the app is opening.
+                if (!dropped && event.toAndroidDragEvent().result) motion.dismiss(quick = true, onDone = onDismissed)
                 dragging = null
             }
         }
@@ -567,6 +582,7 @@ fun RailPanel(
                         top = top / scale,
                     )
                     .height(usable / scale)
+                    .onGloballyPositioned { sidebarBounds[0] = it.boundsInRoot() }
                     // One layer for the whole group, so overlapping parts (neck
                     // over rail and drawer) don't show seams at partial opacity.
                     .graphicsLayer {
